@@ -174,3 +174,30 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Do NOT delete tests without approval.
 
 </laravel-boost-guidelines>
+
+# Agent Harness
+
+This repo uses a lightweight agentic harness for multi-session work. The files below are the source of truth for *what* to work on and *how* to prove it works — read them before writing code.
+
+## On startup
+
+1. Read `feature_list.json` — every feature with its `status`, `dependencies`, and `done_when` criterion. This is the scope boundary.
+2. Read `progress.md` — where the previous session stopped and what was in flight.
+3. Run `./init.sh` to verify the baseline (`composer install`, `composer lint`, `composer test`) before changing anything.
+
+## While working
+
+- Work **one feature at a time**. Pick a feature whose `dependencies` are all `done`.
+- Do not expand scope beyond the chosen feature. Adjacent refactors go in `feature_list.json` as new features, not into the current change.
+
+## Definition of done (per feature)
+
+A feature is `done` only when **all** hold:
+
+- Its `done_when` criterion is satisfied.
+- `./init.sh` passes (Pint lint clean + Pest tests green). Record the evidence (command + result) in `progress.md`.
+- The feature's `status` in `feature_list.json` is updated to `done`.
+
+## End of session
+
+Fill in `session-handoff.md` with the current feature, blockers, files touched, and the next concrete step so the next session can resume without rediscovery.
