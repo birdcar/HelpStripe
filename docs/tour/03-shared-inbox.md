@@ -296,8 +296,9 @@ composer run dev   # the queue worker matters for the reply step
 ```
 
 1. **Replay all fixtures**: `php artisan mail:replay`. Three printed request
-   URLs — a new sign-in request, a billing request with a PDF attachment,
-   and the reply threaded onto the first.
+   URLs — a billing request with a PDF attachment, a new sign-in request,
+   and the reply threaded onto the sign-in request (fixtures run
+   alphabetically: `inbound-attachment`, `inbound-new`, `inbound-reply`).
 2. **Open the created request** (paste the printed URL after logging in as
    `sam@helpstripe.test` / `password`). The customer's email is the opening
    note; the attachment request shows `receipt.pdf` on its note.
@@ -357,7 +358,7 @@ Then:
 ## 11. Verify
 
 ```bash
-php artisan test --compact --filter=Inbox            # webhook, matching, outbound, replay
+php artisan test --compact --filter=Inbox            # webhook, matching, outbound, replay, attachments
 php artisan test --compact --filter=CreateRequestApi # the API channel
 ./init.sh                                            # lint + static analysis + full suite
 ```

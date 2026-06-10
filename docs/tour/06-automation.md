@@ -215,11 +215,11 @@ The seeder creates one rule per layer. Then:
 
 1. **Mail rule** — replay the billing-shaped fixture and watch it route:
    ```bash
-   php artisan mail:replay inbound-new
+   php artisan mail:replay inbound-attachment
    ```
-   (Edit the seeded "Billing keyword routing" rule's condition, or craft a
-   fixture whose subject contains "invoice", to see the new request land in
-   Billing instead of the mailbox default.)
+   (Edit the seeded "Billing keyword routing" rule's condition to match
+   `contains "Charged"`, or craft a fixture whose subject contains "invoice",
+   to see the new request land in Billing instead of the mailbox default.)
 
 2. **Trigger** — create an **urgent** request (agent UI, or the portal). The
    "Escalate new urgent requests" trigger fires on `request_created` and
