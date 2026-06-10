@@ -178,6 +178,24 @@ class Request extends Model
     }
 
     /**
+     * Get the timeline newest-first with authors eager-loaded — exactly
+     * the shape the request detail page renders.
+     *
+     * A relation method can return a pre-constrained relation; callers
+     * still get a HasMany they can refine further. The `id` tiebreak
+     * keeps same-second notes (common in seeders and tests) stable.
+     *
+     * @return HasMany<Note, $this>
+     */
+    public function timeline(): HasMany
+    {
+        return $this->notes()
+            ->with(['user', 'customer'])
+            ->latest()
+            ->latest('id');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * Enum casts are the payoff for backed enums: reads hydrate the raw

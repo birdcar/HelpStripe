@@ -18,8 +18,22 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
-                    {{-- Placeholder: routes to the dashboard until Phase 2 ships the request queue page. --}}
-                    <flux:sidebar.item icon="inbox" :href="route('dashboard')" wire:navigate>
+                    @php
+                        // Open-request count for the badge. One COUNT query per
+                        // page render is fine here; values are status strings
+                        // because whereIn doesn't consult Eloquent casts.
+                        $openRequestCount = \App\Models\Request::query()
+                            ->where('team_id', auth()->user()->current_team_id)
+                            ->whereIn('status', array_map(fn ($status) => $status->value, \App\Enums\RequestStatus::open()))
+                            ->count();
+                    @endphp
+                    <flux:sidebar.item
+                        icon="inbox"
+                        :href="route('requests.index')"
+                        :current="request()->routeIs('requests.*')"
+                        :badge="$openRequestCount ?: null"
+                        wire:navigate
+                    >
                         {{ __('Queue') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>

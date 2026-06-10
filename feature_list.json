@@ -14,9 +14,9 @@
       "name": "Ticket Management",
       "description": "Request queue + detail Livewire UI, assignment, public reply vs private note, activitylog history, saved Filters, canned Responses, domain events + assignment notification. Spec: docs/ideation/helpstripe/spec-phase-2.md",
       "dependencies": ["feat-001"],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; Requests test suites green; docs/tour/02-ticket-management.md demo script runs start-to-finish",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → pint passed, phpstan 0 errors, pest 145/145 (713 assertions). php artisan test --compact --filter=Requests → 61 passed (Queue 13, ShowRequest 20, Actions 16, Filter 8 + 4 suites). migrate:fresh --seed → 40 requests (20 open), 3 Responses, 2 shared Filters. Review cycle 1 of 3 PASS (0 critical/high; 2 medium fixed in-cycle). Demo script verified: queue filters/saved Filters/reply/private note/assign-notify/resolve/history all covered by tests; notification on database+mail channels."
     },
     {
       "id": "feat-003",

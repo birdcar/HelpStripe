@@ -9,6 +9,12 @@ Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class])
     ->group(function () {
         Route::view('dashboard', 'dashboard')->name('dashboard');
+
+        // The helpdesk proper. `{request}` route-model-binds to
+        // App\Models\Request (the ticket, not the HTTP request); the show
+        // page's RequestPolicy check keeps cross-team ids out.
+        Route::livewire('requests', 'pages::requests.index')->name('requests.index');
+        Route::livewire('requests/{request}', 'pages::requests.show')->name('requests.show');
     });
 
 Route::middleware(['auth'])->group(function () {

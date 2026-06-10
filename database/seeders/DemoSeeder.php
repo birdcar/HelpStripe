@@ -7,9 +7,11 @@ use App\Enums\RequestStatus;
 use App\Enums\TeamRole;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Filter;
 use App\Models\Mailbox;
 use App\Models\Note;
 use App\Models\Request;
+use App\Models\Response;
 use App\Models\Team;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -35,6 +37,8 @@ use Illuminate\Support\Collection;
  *  - 40 requests over the last 60 days: 10 unassigned (every 4th),
  *    4 urgent (every 10th), mixed statuses, SLA hits and breaches,
  *    1–6 timeline notes each
+ *  - 3 Responses (canned replies)
+ *  - 2 shared Filters: "My Open", "Urgent Unassigned"
  */
 class DemoSeeder extends Seeder
 {
@@ -50,6 +54,8 @@ class DemoSeeder extends Seeder
         $customers = $this->seedCustomers($team);
 
         $this->seedRequests($team, $staff, $categories, $mailboxes, $customers);
+        $this->seedResponses($team);
+        $this->seedFilters($team, $staff);
     }
 
     /**
@@ -259,6 +265,55 @@ class DemoSeeder extends Seeder
         return $i % 2 === 0
             ? max(1, intdiv($target, 2)) // inside SLA
             : $target * 3;               // breach
+    }
+
+    /**
+     * Three canned replies (Responses, in HelpSpot's vocabulary) for the
+     * reply box picker.
+     */
+    private function seedResponses(Team $team): void
+    {
+        collect([
+            [
+                'name' => 'Password reset steps',
+                'body' => "Hi there,\n\nYou can reset your password from the sign-in page: click \"Forgot password\", enter your email, and follow the link we send you. The link expires after 60 minutes.\n\nLet us know if it doesn't arrive!",
+            ],
+            [
+                'name' => 'Refund processed',
+                'body' => "Hi,\n\nWe've processed your refund. Depending on your bank, it can take 5–10 business days to appear on your statement.\n\nThanks for your patience!",
+            ],
+            [
+                'name' => 'Need more information',
+                'body' => "Hi,\n\nThanks for reaching out. Could you share a bit more detail so we can dig in — what you were doing, what you expected, and what happened instead? A screenshot helps too.\n\nThanks!",
+            ],
+        ])->each(fn (array $attributes) => Response::factory()->create([
+            ...$attributes,
+            'team_id' => $team->id,
+        ]));
+    }
+
+    /**
+     * Two shared saved Filters demonstrating the criteria vocabulary —
+     * note "My Open" stores the symbolic 'me', not a user id, so it means
+     * "the viewer's open requests" for whoever applies it.
+     *
+     * @param  Collection<int, User>  $staff
+     */
+    private function seedFilters(Team $team, Collection $staff): void
+    {
+        Filter::factory()->shared()->create([
+            'team_id' => $team->id,
+            'user_id' => $staff->first()->id,
+            'name' => 'My Open',
+            'criteria' => ['status' => RequestStatus::Active->value, 'assignee' => 'me'],
+        ]);
+
+        Filter::factory()->shared()->create([
+            'team_id' => $team->id,
+            'user_id' => $staff->first()->id,
+            'name' => 'Urgent Unassigned',
+            'criteria' => ['assignee' => 'unassigned', 'urgent' => true],
+        ]);
     }
 
     /**

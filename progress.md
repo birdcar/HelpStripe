@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-06-10
-**Active Feature:** feat-001 complete — Phase 1 (Foundation & Domain Models) done
+**Active Feature:** feat-002 complete — Phase 2 (Ticket Management) done
 
 ## Status
 
@@ -12,7 +12,8 @@
 - [x] Ideation complete: contract approved at Full scope (docs/ideation/helpstripe/contract.md)
 - [x] Eight implementation specs written and approved (docs/ideation/helpstripe/spec-phase-1.md … spec-phase-8.md)
 - [x] feature_list.json synced to the 8 phases with dependencies + done_when criteria
-- [x] **feat-001 Foundation & Domain Models (Phase 1)** — spatie permission/activitylog/tags installed; Request/Customer/Category/Mailbox/Note models + migrations + factories; RequestStatus/RequestSource enums; PermissionSeeder (Administrator / Help Desk Staff); DemoSeeder (1 team, 4 staff, 3 categories, 2 mailboxes, 8 customers, 40 requests, 140 notes); 28 Foundation tests; docs/tour/README.md + 01-foundation.md; sidebar Queue placeholder
+- [x] **feat-001 Foundation & Domain Models (Phase 1)** — spatie permission/activitylog/tags installed; Request/Customer/Category/Mailbox/Note models + migrations + factories; RequestStatus/RequestSource enums; PermissionSeeder; DemoSeeder; 28 Foundation tests; docs/tour/01-foundation.md
+- [x] **feat-002 Ticket Management (Phase 2)** — request queue (⚡index) with #[Url] criteria filters + saved Filters + save-filter modal; request detail (⚡show) with timeline/reply box/canned Response picker/properties panel/history tab; Filter + Response models/migrations/factories; CreateRequest/AddNote/AssignRequest/ChangeStatus actions; RequestCreated/NoteAdded/RequestAssigned/RequestStatusChanged events (plain, no broadcast yet); RequestAssignedNotification (database+mail, queued); RequestQueue query object; RequestPolicy; notifications table migration; sidebar Queue link + open-count badge; DemoSeeder +3 Responses +2 shared Filters; 61 Requests tests; docs/tour/02-ticket-management.md
 
 ### What's In Progress
 
@@ -20,8 +21,8 @@
 
 ### What's Next
 
-1. Execute Phase 2: `/ideation:execute-spec docs/ideation/helpstripe/spec-phase-2.md` (feat-002, depends on feat-001 ✅)
-2. feat-005 (Knowledge Base) is also unblocked (depends only on feat-001) if parallel work is wanted
+1. feat-003 Shared Inbox & Email Pipeline (depends on feat-002 ✅): `/ideation:execute-spec docs/ideation/helpstripe/spec-phase-3.md`
+2. Also unblocked: feat-005 Knowledge Base (deps: feat-001), feat-007 Collision Detection (deps: feat-002), feat-008 Reporting (deps: feat-002)
 
 ## Blockers / Risks
 
@@ -30,33 +31,40 @@
 
 ## Decisions Made
 
-- **HelpSpot vocabulary in code**: the Eloquent model is App\Models\Request, deliberately colliding with Illuminate\Http\Request — taught as a namespaces lesson
-- **One seeded team = the installation**; spatie/laravel-permission is the helpdesk authorization layer, starter TeamRole enums untouched
+- **HelpSpot vocabulary in code**: App\Models\Request and App\Models\Response deliberately collide with framework classes — taught as a namespaces lesson
+- **One seeded team = the installation**; spatie/laravel-permission is the helpdesk authorization layer
 - **Real email via Resend both directions**; mail:replay command is the offline/test fallback
 - **Reverb presence channels** for collision detection (user runs Laravel Herd locally)
 - **Teaching comments are explicitly wanted** in this repo (overrides the global no-comments preference)
-- **(Phase 1, user-directed)** UserFactory no longer auto-creates a personal team — behavior is opt-in via `User::factory()->withPersonalTeam()`. Fortify registration (CreateNewUser) still creates one; deciding registration semantics for a single-team installation is deferred to a later phase
-- **(Phase 1)** spatie resolutions discovered during build: activitylog **v5** stores diffs in `activity.attribute_changes` (not `properties`); permission **v8** `HasRoles` defines `teams()`, resolved via `insteadof` on User; trait/namespace paths are v5's `Spatie\Activitylog\Models\Concerns\LogsActivity` + `Support\LogOptions`
-- **(Phase 1)** `DatabaseSeeder` must not use `WithoutModelEvents` — DemoSeeder relies on Request's `creating` event for access keys
+- **(Phase 1, user-directed)** UserFactory no longer auto-creates a personal team — opt-in via `withPersonalTeam()`
+- **(Phase 1)** activitylog **v5** stores diffs in `activity.attribute_changes`; permission **v8** trait collision resolved via `insteadof` on User
+- **(Phase 1)** `DatabaseSeeder` must not use `WithoutModelEvents`
+- **(Phase 2)** activitylog v5 renamed the subject relation: use `activitiesAsSubject()`, not `activities()`
+- **(Phase 2)** `resolved_at` semantics: stamped once on entering Resolved/Closed (Resolved→Closed keeps the original), cleared on reopening to Active/Pending
+- **(Phase 2)** Category/urgency/tags are direct model updates (activitylog records them); only the four spec'd actions exist — Phase 6 hooks events, not these
+- **(Phase 2)** Saved Filter criteria store symbolic `'me'` (resolved per-viewer by RequestQueue); unknown criteria keys are ignored by design
+- **(Phase 2)** Flux v2 modals: use `Flux::modal('name')->show()/close()` — the starter's `dispatch('close-modal', name:)` is a no-op (Flux listens for `modal-show`/`modal-close`)
+- **(Phase 2)** Added the framework `notifications` table migration (spec gap — required by the database channel)
+- **(Phase 2)** Response picker inserts canned bodies server-side via `updatedSelectedResponse` (testable) instead of the spec's Alpine suggestion
 
 ## Files Modified This Session
 
-- New: app/Models/{Request,Customer,Category,Mailbox,Note}.php, app/Enums/{RequestStatus,RequestSource}.php, 5 helpdesk migrations + 3 spatie-published migrations, 5 factories, database/seeders/{PermissionSeeder,DemoSeeder}.php, tests/Feature/Foundation/{RequestModelTest,PermissionTest,DemoSeederTest}.php, docs/tour/{README,01-foundation}.md, config/permission.php
-- Modified: app/Models/User.php (HasRoles + trait conflict resolution + assignedRequests), database/factories/UserFactory.php (personal team now opt-in), database/seeders/DatabaseSeeder.php, resources/views/layouts/app/sidebar.blade.php (Queue placeholder), composer.json/.lock, 7 starter test files (opt in to withPersonalTeam)
-- Ideation artifacts: docs/ideation/helpstripe/context-map.md, implementation-notes-phase-1.html
+- New: app/Models/{Filter,Response}.php, app/Actions/Requests/{CreateRequest,AddNote,AssignRequest,ChangeStatus}.php, app/Events/{RequestCreated,NoteAdded,RequestAssigned,RequestStatusChanged}.php, app/Notifications/RequestAssignedNotification.php, app/Queries/RequestQueue.php, app/Policies/RequestPolicy.php, 3 migrations (filters, responses, notifications), 2 factories, resources/views/pages/requests/⚡{index,show,save-filter-modal}.blade.php, tests/Feature/Requests/{QueueTest,ShowRequestTest,ActionsTest,FilterTest}.php, docs/tour/02-ticket-management.md
+- Modified: routes/web.php (requests.index/show in {current_team} group), resources/views/layouts/app/sidebar.blade.php (Queue link + open badge), database/seeders/DemoSeeder.php (+Responses +Filters), app/Models/Request.php (timeline() helper)
+- Ideation artifacts: docs/ideation/helpstripe/context-map.md (Phase 2 extension), implementation-notes-phase-2.html (6 entries)
 
 ## Evidence of Completion
 
-- `./init.sh` → composer install OK; pint passed; phpstan passed (0 errors); pest **88/88 passed (577 assertions)**
-- `php artisan test --compact --filter=Foundation` → **28 passed (439 assertions)**
-- `php artisan migrate:fresh --seed` → 1 team ("HelpStripe Support"), 4 users, 3 categories, 2 mailboxes, 8 customers, 40 requests (10 unassigned, 4 urgent), 140 notes
-- Tinker spot-checks: access keys 12 chars; enum casts round-trip; `Request::with('customer','notes')->first()` coherent
-- Review cycle: 1 of 3, verdict PASS (0 critical / 0 high; 3 medium + 2 low reported, trivial ones fixed pre-commit)
+- `./init.sh` → composer install OK; pint passed; phpstan passed (0 errors); pest **145/145 passed (713 assertions)**
+- `php artisan test --compact --filter=Requests` → **61 passed (183 assertions)** across QueueTest/ShowRequestTest/ActionsTest/FilterTest
+- `php artisan migrate:fresh --seed` → 40 requests (20 open), 3 Responses, 2 shared Filters ("My Open", "Urgent Unassigned"), prior Phase 1 dataset intact (DemoSeederTest 11/11)
+- Review cycle: 1 of 3, verdict PASS (0 critical / 0 high; 2 medium fixed in-cycle: history-tab N+1 lookups, missing invalid-status test; 2 low noted)
 
 ## Notes for Next Session
 
-Phase 2 (Ticket Management) builds the queue + detail Livewire UI on these models. Reminders:
-- `App\Models\Request` collides with `Illuminate\Http\Request` — alias the framework class (`use Illuminate\Http\Request as HttpRequest;`) in controllers/components that need both
-- Activity history reads from `Activity::attribute_changes` (v5), log scoped to status/assigned_to/category_id/is_urgent
-- `RequestStatus::color()` returns Flux badge colors, ready for the queue UI
+Phase 3 (Shared Inbox & Email Pipeline) builds on the Phase 2 write-path. Reminders:
+- **Reuse `CreateRequest` / `AddNote`** for inbound email — they fire the domain events and own first_responded_at; do not write a parallel path
+- `AddNote::handle(Request, User|Customer $author, string $body, bool $isPrivate, RequestSource $source)` — customer replies pass the Customer author and `RequestSource::Email`
+- `RequestAssignedNotification` mail channel currently renders on the `log` driver; Phase 3 wires Resend
+- Notes carry a `message_id` column (Phase 1) reserved for email threading headers
 - Run tests with `PAO_DISABLE=1 php vendor/bin/pest …` when you need real (non-JSON) failure output in agent sessions

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 2</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 2</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Ticket Management</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Notifications — missing <code>notifications</code> table migration</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec calls for <code>RequestAssignedNotification</code> on the
+            <code>database</code> + <code>mail</code> channels, but its File Changes list has no
+            migration for Laravel's <code>notifications</code> table, which the database channel
+            requires. No such migration existed from earlier phases.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Added <code>php artisan make:notifications-table</code>
+            (<code>2026_06_10_145654_create_notifications_table.php</code>) — the stock framework
+            migration, unmodified.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Mail-only channel — rejected: the spec and tour doc explicitly demo the database-channel notification.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>History tab — activitylog v5 renamed the subject relation</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec says the History tab renders <code>$request-&gt;activities</code>. In
+            activitylog v5 (the installed major), the <code>LogsActivity</code> trait's relation is
+            <code>activitiesAsSubject()</code> — <code>activities()</code> no longer exists.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Used <code>activitiesAsSubject()</code> in the ⚡show component. Continues Phase 1's v5
+            discovery (diffs live in <code>attribute_changes</code>, not <code>properties</code>).
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Adding an <code>activities()</code> alias relation on the model — rejected: shadowing a vendor rename invites confusion later.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Response picker — Livewire updated-hook instead of Alpine insertion</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec suggests the canned-Response picker "inserts body text via Alpine". Doing it
+            client-side means shipping every response body into the page and entangling Alpine
+            state with <code>wire:model</code> on the textarea.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Server-side <code>updatedSelectedResponse()</code> hook: picking a Response appends its
+            body to the draft (team-scoped lookup, append not replace). Testable in Pest without a
+            browser, and one less moving part.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Alpine <code>x-on:change</code> writing to <code>$wire.replyBody</code> — works, but untestable in the Livewire test harness and duplicates state client-side.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>ChangeStatus — <code>resolved_at</code> semantics for Closed and re-transitions</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec defines "Resolved sets <code>resolved_at</code>, back to Active clears it" but is
+            silent on Closed and on Resolved → Closed.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Entering either non-open status (Resolved, Closed) stamps <code>resolved_at</code> once;
+            Resolved → Closed keeps the original timestamp; entering any open status (Active,
+            Pending) clears it. Matches the Phase 1 seeder, which gives closed requests a
+            <code>resolved_at</code>, and keeps Phase 8's resolution metrics monotonic.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Stamping only on Resolved — rejected: a request closed without passing through Resolved would never count as resolved in reports despite being finished.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Properties panel — category/urgency are direct updates, not actions</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec says "Property changes call the actions directly" but defines exactly four
+            actions (create, note, assign, status) — none for category, urgency, or tags.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Category, urgency, and tags are plain model updates in the component;
+            <code>LogsActivity</code> records category/urgency changes for the History tab either
+            way. No later phase hooks these changes, so no event/action indirection is warranted.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Inventing <code>ChangeCategory</code>/<code>ToggleUrgent</code> actions — rejected as scope expansion: nothing consumes them, and the spec's action list is explicit.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Save-filter modal — criteria delivered by event, not mount prop</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The modal is a nested SFC; mount props are bound once, but the queue's criteria change
+            constantly after mount. The spec's referenced pattern (<code>⚡create-team-modal</code>,
+            which lives at <code>resources/views/components/</code>, not under pages/teams as the
+            spec implied) carries no parent state at all.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The queue dispatches <code>save-filter-modal:open</code> with the current criteria
+            array; the modal's <code>#[On]</code> handler stores them and opens itself via
+            <code>Flux::modal()-&gt;show()</code>. Also note: the starter's
+            <code>dispatch('close-modal', name: …)</code> convention is a no-op with Flux v2 (its
+            real events are <code>modal-show</code>/<code>modal-close</code>), so this phase uses the
+            documented <code>Flux::modal()</code> PHP API instead.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Re-keying the nested component on criteria changes to force re-mount — rejected: discards modal state mid-interaction and re-renders on every keystroke in the search box.</dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>
