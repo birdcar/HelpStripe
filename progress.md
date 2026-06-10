@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-06-10
-**Active Feature:** feat-002 complete — Phase 2 (Ticket Management) done
+**Active Feature:** feat-005 complete — Phase 5 (Knowledge Base) done
 
 ## Status
 
@@ -13,7 +13,8 @@
 - [x] Eight implementation specs written and approved (docs/ideation/helpstripe/spec-phase-1.md … spec-phase-8.md)
 - [x] feature_list.json synced to the 8 phases with dependencies + done_when criteria
 - [x] **feat-001 Foundation & Domain Models (Phase 1)** — spatie permission/activitylog/tags installed; Request/Customer/Category/Mailbox/Note models + migrations + factories; RequestStatus/RequestSource enums; PermissionSeeder; DemoSeeder; 28 Foundation tests; docs/tour/01-foundation.md
-- [x] **feat-002 Ticket Management (Phase 2)** — request queue (⚡index) with #[Url] criteria filters + saved Filters + save-filter modal; request detail (⚡show) with timeline/reply box/canned Response picker/properties panel/history tab; Filter + Response models/migrations/factories; CreateRequest/AddNote/AssignRequest/ChangeStatus actions; RequestCreated/NoteAdded/RequestAssigned/RequestStatusChanged events (plain, no broadcast yet); RequestAssignedNotification (database+mail, queued); RequestQueue query object; RequestPolicy; notifications table migration; sidebar Queue link + open-count badge; DemoSeeder +3 Responses +2 shared Filters; 61 Requests tests; docs/tour/02-ticket-management.md
+- [x] **feat-002 Ticket Management (Phase 2)** — request queue (⚡index) with #[Url] criteria filters + saved Filters + save-filter modal; request detail (⚡show) with timeline/reply box/canned Response picker/properties panel/history tab; Filter + Response models; CreateRequest/AddNote/AssignRequest/ChangeStatus actions; 4 domain events; RequestAssignedNotification; RequestQueue query object; RequestPolicy; 61 Requests tests; docs/tour/02-ticket-management.md
+- [x] **feat-005 Knowledge Base (Phase 5)** — KnowledgeBook/Chapter/Page models (HasSlug with per-parent extraScope, #[Scope] published, position max+1 in boot) + migrations (composite unique slugs, cascade FKs) + factories; spatie/laravel-sluggable v4 installed; admin manager SFCs pages/kb/⚡{index,book,edit-page} behind `can:manage knowledge base` (cross-team ids 404 in mount/actions); public portal: layouts/portal.blade.php + pages/portal/kb/⚡{index,book,page,search} with nested-slug routes + scopeBindings(); LIKE search with explicit ESCAPE clause; Str::markdown html_input=escape everywhere (editor preview + portal); sidebar @can nav item; DemoSeeder +2 books/3 chapters/10 pages; 49 KnowledgeBase tests; docs/tour/05-knowledge-base.md
 
 ### What's In Progress
 
@@ -22,7 +23,8 @@
 ### What's Next
 
 1. feat-003 Shared Inbox & Email Pipeline (depends on feat-002 ✅): `/ideation:execute-spec docs/ideation/helpstripe/spec-phase-3.md`
-2. Also unblocked: feat-005 Knowledge Base (deps: feat-001), feat-007 Collision Detection (deps: feat-002), feat-008 Reporting (deps: feat-002)
+2. Also unblocked: feat-007 Collision Detection (deps: feat-002), feat-008 Reporting (deps: feat-002)
+3. feat-004 Portal (deps: feat-003) — NOTE: Phase 5 already created `layouts/portal.blade.php` and the `portal` route group; Phase 4 must EXTEND both, not recreate (see implementation-notes-phase-5.html)
 
 ## Blockers / Risks
 
@@ -40,25 +42,30 @@
 - **(Phase 1)** activitylog **v5** stores diffs in `activity.attribute_changes`; permission **v8** trait collision resolved via `insteadof` on User
 - **(Phase 1)** `DatabaseSeeder` must not use `WithoutModelEvents`
 - **(Phase 2)** activitylog v5 renamed the subject relation: use `activitiesAsSubject()`, not `activities()`
-- **(Phase 2)** `resolved_at` semantics: stamped once on entering Resolved/Closed (Resolved→Closed keeps the original), cleared on reopening to Active/Pending
-- **(Phase 2)** Category/urgency/tags are direct model updates (activitylog records them); only the four spec'd actions exist — Phase 6 hooks events, not these
-- **(Phase 2)** Saved Filter criteria store symbolic `'me'` (resolved per-viewer by RequestQueue); unknown criteria keys are ignored by design
-- **(Phase 2)** Flux v2 modals: use `Flux::modal('name')->show()/close()` — the starter's `dispatch('close-modal', name:)` is a no-op (Flux listens for `modal-show`/`modal-close`)
-- **(Phase 2)** Added the framework `notifications` table migration (spec gap — required by the database channel)
-- **(Phase 2)** Response picker inserts canned bodies server-side via `updatedSelectedResponse` (testable) instead of the spec's Alpine suggestion
+- **(Phase 2)** `resolved_at` semantics: stamped once on entering Resolved/Closed, cleared on reopening
+- **(Phase 2)** Saved Filter criteria store symbolic `'me'` (resolved per-viewer by RequestQueue); unknown criteria keys ignored
+- **(Phase 2)** Flux v2 modals: use `Flux::modal('name')->show()/close()` — `dispatch('close-modal', name:)` is a no-op
+- **(Phase 2)** Added the framework `notifications` table migration (spec gap)
+- **(Phase 5)** Portal route group must be registered BEFORE the `{current_team}` group — the team prefix would otherwise capture `/portal/...` as a team slug (and `kb/search` before `kb/{book:slug}`)
+- **(Phase 5)** `layouts/portal.blade.php` created here (Phase 5 landed before Phase 4); `Route::has('portal.home')`/`Route::has('portal.kb.index')` guards keep phases order-independent — Phase 4 extends, never recreates
+- **(Phase 5)** Admin KB routes bind by id (`kb/{book}`, flat `kb/pages/{page}`); nested-slug + scopeBindings() lesson lives on the portal only; cross-team admin access 404s via mount/action checks (permission-vs-policy contrast: no KnowledgeBookPolicy on purpose)
+- **(Phase 5)** LIKE search needs an explicit `ESCAPE '\'` clause (`whereRaw`) — SQLite has no default LIKE escape character, so backslash-escaping `%`/`_` alone is MySQL-only behavior
+- **(Phase 5)** Eager-load constraint closures receive the Relation (e.g. `HasMany`), not `Builder` — type hints must match or the closure TypeErrors
+- **(Phase 5)** larastan + `@property int` docblocks: `$model->position === null` is flagged always-false; use `array_key_exists('position', $model->getAttributes())` in `creating` hooks
+- **(Phase 5)** CommonMark treats a leading `<script>` line as an HTML block — inline markdown on the same line stays literal; test fixtures must separate paragraphs
 
 ## Files Modified This Session
 
-- New: app/Models/{Filter,Response}.php, app/Actions/Requests/{CreateRequest,AddNote,AssignRequest,ChangeStatus}.php, app/Events/{RequestCreated,NoteAdded,RequestAssigned,RequestStatusChanged}.php, app/Notifications/RequestAssignedNotification.php, app/Queries/RequestQueue.php, app/Policies/RequestPolicy.php, 3 migrations (filters, responses, notifications), 2 factories, resources/views/pages/requests/⚡{index,show,save-filter-modal}.blade.php, tests/Feature/Requests/{QueueTest,ShowRequestTest,ActionsTest,FilterTest}.php, docs/tour/02-ticket-management.md
-- Modified: routes/web.php (requests.index/show in {current_team} group), resources/views/layouts/app/sidebar.blade.php (Queue link + open badge), database/seeders/DemoSeeder.php (+Responses +Filters), app/Models/Request.php (timeline() helper)
-- Ideation artifacts: docs/ideation/helpstripe/context-map.md (Phase 2 extension), implementation-notes-phase-2.html (6 entries)
+- New: app/Models/{KnowledgeBook,Chapter,Page}.php, 3 migrations (knowledge_books, chapters, pages), 3 factories, resources/views/layouts/portal.blade.php, resources/views/pages/kb/⚡{index,book,edit-page}.blade.php, resources/views/pages/portal/kb/⚡{index,book,page,search}.blade.php, tests/Feature/KnowledgeBase/{AdminCrudTest,PortalBrowsingTest,SearchTest}.php, docs/tour/05-knowledge-base.md
+- Modified: composer.json/lock (+spatie/laravel-sluggable ^4.0), routes/web.php (portal group first + gated kb group), resources/views/layouts/app/sidebar.blade.php (@can Knowledge Books item), database/seeders/DemoSeeder.php (+seedKnowledgeBase)
+- Ideation artifacts: docs/ideation/helpstripe/context-map.md (Phase 5 extension), implementation-notes-phase-5.html (6 entries)
 
 ## Evidence of Completion
 
-- `./init.sh` → composer install OK; pint passed; phpstan passed (0 errors); pest **145/145 passed (713 assertions)**
-- `php artisan test --compact --filter=Requests` → **61 passed (183 assertions)** across QueueTest/ShowRequestTest/ActionsTest/FilterTest
-- `php artisan migrate:fresh --seed` → 40 requests (20 open), 3 Responses, 2 shared Filters ("My Open", "Urgent Unassigned"), prior Phase 1 dataset intact (DemoSeederTest 11/11)
-- Review cycle: 1 of 3, verdict PASS (0 critical / 0 high; 2 medium fixed in-cycle: history-tab N+1 lookups, missing invalid-status test; 2 low noted)
+- `./init.sh` → composer install OK; pint passed; phpstan passed (0 errors); pest **194/194 passed (830 assertions)**
+- `php artisan test --compact --filter=KnowledgeBase` → **49 passed (117 assertions)** across AdminCrudTest (26) / PortalBrowsingTest (16) / SearchTest (7)
+- `php artisan migrate:fresh --seed` → 2 books ("Getting Started" published, "Internal Runbook" draft), 3 chapters, 10 pages (7 published incl. "Resetting Your Password" + draft "password" twin); prior Phase 1/2 dataset intact
+- Review cycle: 1 of 3, verdict PASS (0 critical / 0 high; 1 medium fixed in-cycle: position swaps wrapped in DB::transaction; 1 low fixed: positive HTTP coverage for kb.book/kb.edit-page; 1 low noted: move() treats any non-'up' direction as down — harmless)
 
 ## Notes for Next Session
 
@@ -68,3 +75,4 @@ Phase 3 (Shared Inbox & Email Pipeline) builds on the Phase 2 write-path. Remind
 - `RequestAssignedNotification` mail channel currently renders on the `log` driver; Phase 3 wires Resend
 - Notes carry a `message_id` column (Phase 1) reserved for email threading headers
 - Run tests with `PAO_DISABLE=1 php vendor/bin/pest …` when you need real (non-JSON) failure output in agent sessions
+- If Phase 4 runs next instead: `layouts/portal.blade.php` and the `portal` route group already exist (Phase 5) — extend them; the KB teaser guard is `Route::has('portal.kb.index')` (already true)

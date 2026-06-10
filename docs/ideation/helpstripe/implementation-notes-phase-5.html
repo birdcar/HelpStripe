@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 2</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 5</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Knowledge Base</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Portal layout — created by Phase 5, not Phase 4</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's pattern reference for portal pages is "Phase 4 portal pages (layout + public
+            routes)", but Phase 5 ran first (it depends only on Phase 1). The spec sanctions this:
+            "whichever phase lands second completes the wiring".
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Created the minimal <code>resources/views/layouts/portal.blade.php</code> here: brand
+            header, footer, no app chrome, with <code>Route::has('portal.home')</code> /
+            <code>Route::has('portal.kb.index')</code> guards in the header so navigation lights up
+            as phases land. <strong>Phase 4 must extend this file, not recreate it</strong> (its
+            File Changes table lists it as a new file).
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Rendering portal KB pages in the app layout — rejected: the layout contrast is a named
+            lesson, and the app layout assumes an authenticated user.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Routes — portal group must precede the <code>{current_team}</code> group</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The existing <code>{current_team}</code> prefix group matches any first URL segment, so
+            <code>/portal/kb</code> was captured as team "portal" and redirected guests to login
+            (caught by PortalBrowsingTest, 302s).
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Registered the <code>portal</code> route group <em>before</em> the
+            <code>{current_team}</code> group; first match wins. A comment in
+            <code>routes/web.php</code> records both ordering constraints (portal-before-team and
+            search-before-book-slug). Phase 4's portal routes must join this same group position.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A <code>where()</code> regex constraint excluding "portal" from
+            <code>{current_team}</code> — rejected: ordering is simpler and Phase 4 adds more
+            portal routes anyway.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Admin routes — flat id-bound editor URL, slugs only on the portal</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec specifies portal URLs precisely (nested slugs + <code>scopeBindings()</code>)
+            but is silent on admin URLs for the book manager and page editor.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Admin binds by id: <code>kb/{book}</code> and a flat <code>kb/pages/{page}</code> for
+            the editor. The scoped-binding lesson lives on the portal where it matters; admin
+            mount() does an explicit cross-team check instead.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Mirroring the nested slug URLs in admin — rejected: renames would relocate the editor
+            URL mid-edit, and the duplication teaches nothing new.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Cross-team manager access — 404 via mount() check, not a policy</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            spatie roles are global (teams feature off), so an Administrator of team A technically
+            holds 'manage knowledge base' everywhere; the spec doesn't address cross-team ids
+            reaching the manager.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Every admin mount()/action verifies the record belongs to
+            <code>current_team_id</code> and 404s otherwise (existence not leaked). Contrast
+            documented in the tour doc against Phase 2's policy-based 403.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A KnowledgeBookPolicy — rejected: the phase's stated lesson is permission middleware
+            <em>vs.</em> policies; adding a policy would blur the contrast.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Search — explicit <code>ESCAPE</code> clause for LIKE wildcards</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's failure mode table says to escape <code>%</code>/<code>_</code> in the
+            search term. Backslash-escaping alone is a MySQL convention — SQLite (the test
+            database) has no default LIKE escape character, so <code>\%</code> would not work
+            there.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            <code>whereRaw('title LIKE ? ESCAPE ?', [$like, '\\'])</code> with
+            <code>addcslashes($term, '\%_')</code> — portable across SQLite, MySQL, and Postgres.
+            Covered by the wildcard-literal test in SearchTest.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Laravel's <code>whereLike()</code> — rejected: it does not escape wildcards in the
+            value, which is the entire point here.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Portal home KB teaser — deferred to Phase 4</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Modified Files lists <code>pages/portal/⚡home.blade.php</code> "Activate KB
+            teaser (if Phase 4 already shipped)". Phase 4 has not shipped; the file does not exist.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Nothing to wire — Phase 4 carries the same <code>Route::has('portal.kb.index')</code>
+            guard and will complete the teaser when it creates the home page. The portal layout's
+            header already links to the KB for navigation in the meantime.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Creating a stub portal home — rejected: out of scope; that page is Phase 4's.</dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

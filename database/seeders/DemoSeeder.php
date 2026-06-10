@@ -6,10 +6,13 @@ use App\Enums\RequestSource;
 use App\Enums\RequestStatus;
 use App\Enums\TeamRole;
 use App\Models\Category;
+use App\Models\Chapter;
 use App\Models\Customer;
 use App\Models\Filter;
+use App\Models\KnowledgeBook;
 use App\Models\Mailbox;
 use App\Models\Note;
+use App\Models\Page;
 use App\Models\Request;
 use App\Models\Response;
 use App\Models\Team;
@@ -39,6 +42,10 @@ use Illuminate\Support\Collection;
  *    1–6 timeline notes each
  *  - 3 Responses (canned replies)
  *  - 2 shared Filters: "My Open", "Urgent Unassigned"
+ *  - 2 Knowledge Books: "Getting Started" (published, 2 chapters,
+ *    7 pages — 5 published incl. "Resetting Your Password", 2 drafts
+ *    incl. a "password" draft twin for the search demo) and
+ *    "Internal Runbook" (draft, 1 chapter, 3 pages)
  */
 class DemoSeeder extends Seeder
 {
@@ -56,6 +63,7 @@ class DemoSeeder extends Seeder
         $this->seedRequests($team, $staff, $categories, $mailboxes, $customers);
         $this->seedResponses($team);
         $this->seedFilters($team, $staff);
+        $this->seedKnowledgeBase($team);
     }
 
     /**
@@ -314,6 +322,93 @@ class DemoSeeder extends Seeder
             'name' => 'Urgent Unassigned',
             'criteria' => ['assignee' => 'unassigned', 'urgent' => true],
         ]);
+    }
+
+    /**
+     * Two Knowledge Books exercising every visibility combination the
+     * portal has to handle:
+     *
+     *  - "Getting Started" is published: its published pages are live on
+     *    the portal, its drafts are not. "Resetting Your Password" is the
+     *    search demo target; "Password Requirements" is the draft twin
+     *    that must NOT appear for the same query.
+     *  - "Internal Runbook" is a draft book: even its *published* pages
+     *    stay off the portal (book gates the subtree).
+     *
+     * Bodies are fixed Markdown, not faker — the portal renders them, so
+     * the demo should read like a real help center.
+     */
+    private function seedKnowledgeBase(Team $team): void
+    {
+        $gettingStarted = KnowledgeBook::factory()->published()->create([
+            'team_id' => $team->id,
+            'name' => 'Getting Started',
+            'description' => 'Everything you need for your first week.',
+        ]);
+
+        $firstSteps = Chapter::factory()->create([
+            'knowledge_book_id' => $gettingStarted->id,
+            'name' => 'First Steps',
+        ]);
+
+        $this->seedPages($firstSteps, [
+            ['Creating Your Account', true, "## Creating your account\n\nHead to the sign-up page, enter your email, and pick a strong passphrase.\n\n- Use your work email so teammates can find you\n- You can rename your workspace later"],
+            ['Resetting Your Password', true, "## Resetting your password\n\nForgot your password? No problem.\n\n1. Open the sign-in page\n2. Click **Forgot password**\n3. Follow the link we email you — it expires after 60 minutes"],
+            ['Inviting Teammates', true, "## Inviting teammates\n\nOpen **Settings → Teams**, choose your team, and send an invitation by email.\n\nInvitees get a link that adds them as members."],
+            ['Password Requirements', false, "## Password requirements (draft)\n\nStill drafting the password policy page — minimum length, rotation rules, and manager-approved exceptions land here."],
+        ]);
+
+        $billingBasics = Chapter::factory()->create([
+            'knowledge_book_id' => $gettingStarted->id,
+            'name' => 'Billing Basics',
+        ]);
+
+        $this->seedPages($billingBasics, [
+            ['Reading Your Invoice', true, "## Reading your invoice\n\nInvoices arrive by email on the 1st. Line items map to your plan plus any usage overage."],
+            ['Updating Payment Details', true, "## Updating payment details\n\nOpen **Billing → Payment methods** and add the new card before removing the old one — billing never lapses mid-cycle."],
+            ['Refund Policy', false, "## Refund policy (draft)\n\nLegal is still reviewing the refund windows. Do not publish until sign-off."],
+        ]);
+
+        $runbook = KnowledgeBook::factory()->create([
+            'team_id' => $team->id,
+            'name' => 'Internal Runbook',
+            'description' => 'Staff-only procedures. Not for the portal (yet).',
+        ]);
+
+        $escalations = Chapter::factory()->create([
+            'knowledge_book_id' => $runbook->id,
+            'name' => 'Escalations',
+        ]);
+
+        // Note "Paging the On-call" is a *published page in a draft
+        // book*: the portal must still hide it — the visibility matrix
+        // in PortalBrowsingTest proves it does.
+        $this->seedPages($escalations, [
+            ['Paging the On-call', true, "## Paging the on-call\n\nSeverity 1: page immediately. Severity 2: open a thread first, page if no answer in 15 minutes."],
+            ['Incident Severity Levels', false, "## Severity levels (draft)\n\nDraft matrix of SEV1–SEV4 definitions and response targets."],
+            ['Vendor Contacts', true, "## Vendor contacts\n\nEmail-provider support and datacenter NOC numbers live in the shared vault."],
+        ]);
+    }
+
+    /**
+     * Create pages in order. Position is assigned by Page::boot()
+     * (max+1 per chapter), so array order IS display order.
+     *
+     * @param  list<array{0: string, 1: bool, 2: string}>  $pages  [title, published, body]
+     */
+    private function seedPages(Chapter $chapter, array $pages): void
+    {
+        foreach ($pages as [$title, $published, $body]) {
+            $factory = $published
+                ? Page::factory()->published()
+                : Page::factory();
+
+            $factory->create([
+                'chapter_id' => $chapter->id,
+                'title' => $title,
+                'body' => $body,
+            ]);
+        }
     }
 
     /**

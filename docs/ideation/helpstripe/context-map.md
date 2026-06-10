@@ -1,22 +1,33 @@
 # Context Map: helpstripe
 
-**Phase**: 2
+**Phase**: 5
 **Scout Confidence**: 89/100
 **Verdict**: GO
 
-> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1 sections retained below; Phase 2 findings added.
+> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2 sections retained below; Phase 5 findings added. (Phase 5 runs before 3/4 — it depends only on Phase 1.)
 
 ## Dimensions
 
-| Dimension            | Phase 1 | Phase 2 | Notes (Phase 2)                                                                                                |
-| -------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| Scope clarity        | 19/20   | 19/20   | Spec enumerates every new/modified file. One stale reference: pattern `⚡create-team-modal.blade.php` doesn't exist — the create-team modal lives inline in `teams/⚡index.blade.php` (lines 93–112) and `⚡invite-member-modal.blade.php` is the standalone-modal-SFC analogue. |
-| Pattern familiarity  | 18/20   | 18/20   | Read `teams/⚡index.blade.php` (SFC page + inline modal + Flux::toast), `teams/⚡edit.blade.php` (mount(Model), Gate::authorize, nested `<livewire:pages::...>` SFCs), `teams/⚡invite-member-modal.blade.php` (standalone modal SFC), `app/Actions/Teams/CreateTeam.php` (handle() + DB::transaction), `app/Notifications/Teams/TeamInvitation.php` (ShouldQueue + toMail/toArray), `app/Policies/TeamPolicy.php`. |
-| Dependency awareness | 16/20   | 17/20   | Modified files all additive: `routes/web.php` (`{current_team}` group exists, dashboard only), `sidebar.blade.php` (Queue placeholder at lines 21–24 → repoint), `DemoSeeder.php` (append seed methods), `Request.php` (add helpers). `URL::defaults(['current_team' => slug])` set by `HasTeams::switchTeam` and `EnsureTeamMembership` middleware switches team on mismatch. |
-| Edge case coverage   | 16/20   | 17/20   | first_responded_at single-set via `whereNull` guard; self-assign no-notify; cross-team request → 403 via policy; resolved_at cleared when reopened; criteria JSON unknown keys ignored; empty Responses table; pagination page reset when filters change. |
-| Test strategy        | 18/20   | 18/20   | `Livewire::test('pages::teams.index')` pattern confirmed in `tests/Feature/Teams/TeamTest.php`; RefreshDatabase global via `tests/Pest.php`; filters: `--filter=QueueTest|ShowRequestTest|ActionsTest|FilterTest`, suite filter `--filter=Requests`. `Event::fake()`/`Notification::fake()` for ActionsTest. |
+| Dimension            | Phase 1 | Phase 2 | Phase 5 | Notes (Phase 5)                                                                                                |
+| -------------------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | 19/20   | 19/20   | 18/20   | Spec enumerates every file. One real gap: Phase 4 hasn't run, so `layouts/portal.blade.php` and the portal route group don't exist — Phase 5 lands first and must create the minimal portal layout (spec-sanctioned: "whichever phase lands second completes the wiring"). |
+| Pattern familiarity  | 18/20   | 18/20   | 18/20   | Read `teams/⚡index.blade.php` (page + inline modal), `components/⚡create-team-modal.blade.php` (exists — standalone modal SFC, spec reference valid), `requests/⚡show.blade.php` (mount(Model) + Gate), Category model/migration/factory (Phase 1 model conventions), PermissionSeeder (`manage knowledge base` already seeded in PERMISSIONS const), Livewire 4 docs (`#[Layout('layouts::portal')]`), Laravel 13 docs (`#[Scope]` attribute — no scopes exist in app yet; Phase 5 introduces the first), sluggable API (HasSlug + SlugOptions->extraScope). |
+| Dependency awareness | 16/20   | 17/20   | 18/20   | All modified files additive: `routes/web.php` (admin kb routes inside `{current_team}` group + new public `portal/kb` group), `sidebar.blade.php` (new nav item under Queue), `DemoSeeder.php` (append seedKnowledgeBase — DemoSeederTest asserts exact counts, additions must not disturb), `composer.json` (+spatie/laravel-sluggable, spec-approved). No portal/⚡home.blade.php yet — teaser wiring deferred to Phase 4 per spec. |
+| Edge case coverage   | 16/20   | 17/20   | 17/20   | Slug collision across parents (extraScope), slug regen on rename → old slug 404, draft book hides published pages (visibility = book AND page), `<script>` in markdown escaped, LIKE `%`/`_` escaping, position max+1 per parent, cascade deletes, empty book TOC, staff (no permission) 403 + hidden nav. |
+| Test strategy        | 18/20   | 18/20   | 18/20   | `Livewire::test('pages::portal.kb.index')` + HTTP `get(route(...))` both established. RefreshDatabase global. Filters: `--filter=KnowledgeBase` hits tests/Feature/KnowledgeBase/*. Permission tests need PermissionSeeder seeded per-test (`$this->seed(PermissionSeeder::class)`) since RefreshDatabase wipes it. |
 
 ## Key Patterns
+
+### Phase 5
+
+- `app/Models/Category.php` + `database/migrations/...create_categories_table.php` + `CategoryFactory` — the team-scoped model triple to replicate for KnowledgeBook: `#[Fillable]` attribute, `@property` docblocks, typed relation docblocks, teaching docblocks in migrations, factory with `fake()` + named states.
+- `resources/views/pages/teams/⚡index.blade.php` — page SFC anatomy: `new #[Title] class extends Component`, `#[Computed]`, action methods resolving deps from container, `Flux::toast`, inline `<flux:modal name=… :show="$errors->isNotEmpty()">` + `flux:modal.trigger`, `data-test` attributes.
+- `resources/views/pages/requests/⚡show.blade.php` — `mount(Model $param)` route-model binding + authorization in mount.
+- `resources/views/layouts/app.blade.php` + `partials/head.blade.php` — layout component anatomy; portal layout mirrors this minus sidebar (`<x-layouts::…>` not needed: plain Blade layout with `{{ $slot }}`, `@fluxAppearance`/`@fluxScripts`, title via `$title`).
+- `database/seeders/PermissionSeeder.php` — `manage knowledge base` permission + Administrator role already exist; `can:manage knowledge base` route middleware works through the Gate (spatie registers permissions as abilities).
+- Livewire 4: portal pages opt out of the app layout with `#[Layout('layouts::portal')]`; default is `layouts::app`.
+- Laravel 13 scopes: `#[Scope] protected function published(Builder $query): void` — first scopes in the app, establish the attribute style.
+- Sluggable: `use HasSlug; getSlugOptions(): SlugOptions` → `SlugOptions::create()->generateSlugsFrom('name')->saveSlugsTo('slug')->extraScope(fn ($builder) => $builder->where('chapter_id', $this->chapter_id))`. Default behavior regenerates slug on source rename (spec wants this — old slug 404s).
 
 ### Phase 2
 
@@ -37,6 +48,14 @@
 - `tests/Pest.php` — `RefreshDatabase` already applied to everything in `tests/Feature`.
 
 ## Dependencies
+
+### Phase 5
+
+- `routes/web.php` — admin kb routes go inside the existing `{current_team}` group with extra `can:manage knowledge base` middleware; portal kb routes are a new top-level public group (`Route::prefix('portal')->name('portal.')`) — Phase 4 will add its own routes to a sibling/merged group later. `Route::has('portal.kb.index')` is the cross-phase guard Phase 4 consumes.
+- `resources/views/layouts/portal.blade.php` — created here (minimal); Phase 4 spec lists it as its own new file → Phase 4 should treat it as existing and extend, not recreate (noted in implementation notes).
+- `database/seeders/DemoSeeder.php` — `DemoSeederTest` asserts exact counts of existing entities; KB seeding must be purely additive. New `seedKnowledgeBase($team)` call appended in `run()`.
+- `resources/views/layouts/app/sidebar.blade.php` — add `@can('manage knowledge base')`-gated item after Queue.
+- Nested binding chain relies on relationship names matching route param plurals: `KnowledgeBook::chapters()`, `Chapter::pages()` — required by `scopeBindings()` convention (`{book:slug}/{chapter:slug}/{page:slug}` guesses `chapters`/`pages`).
 
 ### Phase 2
 
@@ -64,6 +83,15 @@
 - **Activity history**: activitylog v5 — diffs in `Activity::attribute_changes` (`['attributes' => [...], 'old' => [...]]`), logged fields: status, assigned_to, category_id, is_urgent.
 
 ## Risks
+
+### Phase 5
+
+- Route param `{page}` (Page model) coexists with Livewire pagination's `page` query param — distinct (path segment vs query string) but worth a comment; avoid `WithPagination` on the portal page component.
+- Implicit binding ignores published state — portal mount() must 404 drafts explicitly (`abort_unless($book->is_published, 404)` etc.); binding only proves hierarchy, not visibility.
+- `App\Models\Page` is a generic name — no collision today (`Flux\Page`? no), but keep imports explicit.
+- spatie/laravel-sluggable is a new dependency — spec-approved via composer.json entry; verify version supports `extraScope` (v3.7+).
+- Permission middleware via `can:` uses the Gate; tests must seed PermissionSeeder before `assignRole('Administrator')`/`givePermissionTo` and may need `PermissionRegistrar` cache reset (seeder handles it).
+- DemoSeeder KB content includes the searchable "password" page (spec demo: search "password" finds the published page, excludes a draft twin) — keep titles deterministic.
 
 ### Phase 2
 

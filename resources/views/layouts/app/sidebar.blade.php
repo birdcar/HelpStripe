@@ -36,6 +36,21 @@
                     >
                         {{ __('Queue') }}
                     </flux:sidebar.item>
+
+                    {{-- Visible only with the spatie permission — the nav
+                         mirrors the `can:` middleware on the kb routes, so
+                         staff without the permission never see a link they
+                         would 403 on. --}}
+                    @can('manage knowledge base')
+                        <flux:sidebar.item
+                            icon="book-open"
+                            :href="route('kb.index')"
+                            :current="request()->routeIs('kb.*')"
+                            wire:navigate
+                        >
+                            {{ __('Knowledge Books') }}
+                        </flux:sidebar.item>
+                    @endcan
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

@@ -41,9 +41,9 @@
       "name": "Knowledge Base",
       "description": "Knowledge Books → Chapters → Pages with sluggable URLs, drafts, admin manager, portal browsing + LIKE search. Spec: docs/ideation/helpstripe/spec-phase-5.md",
       "dependencies": ["feat-001"],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; KnowledgeBase tests green; docs/tour/05-knowledge-base.md demo script works",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → pint passed, phpstan 0 errors, pest 194/194 (830 assertions). php artisan test --compact --filter=KnowledgeBase → 49 passed (117 assertions: AdminCrud 26, PortalBrowsing 16, Search 7). migrate:fresh --seed → 2 books, 3 chapters, 10 pages (7 published). Review cycle 1 of 3 PASS (0 critical/high; 1 medium + 1 low fixed in-cycle). Demo script steps covered by tests: permission 403 + hidden nav, publish matrix, scoped-slug cross-resolution 404, <script> escaping, search wildcard escaping, slug regen 404."
     },
     {
       "id": "feat-006",
