@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 1</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 1</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Foundation &amp; Domain Models</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>User model — trait collision between HasTeams and spatie HasRoles</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec said "Add <code>HasRoles</code> to <code>User</code>". spatie/laravel-permission v8
+            (the version composer resolved) added its own <code>teams()</code> relation to
+            <code>HasRoles</code>, which collides with the starter kit's <code>HasTeams::teams()</code>.
+            PHP refuses to compose the traits without explicit resolution.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Trait conflict resolution: <code>HasTeams::teams insteadof HasRoles</code> keeps the
+            starter's team relation as <code>teams()</code>; spatie's is aliased to
+            <code>permissionTeams()</code>. Spatie's teams feature is disabled
+            (<code>'teams' =&gt; false</code>), spatie never calls its own <code>teams()</code>
+            internally, and the disabled-mode relation returns no rows — so the alias is inert.
+            Bonus: this is a second real-world name-collision lesson for the tour doc.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Renaming the starter's <code>teams()</code> relation — rejected: it's consumed across the
+            starter kit (team switcher, settings screens) and would expand the diff far beyond the phase scope.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Request history — activitylog v5 stores diffs in <code>attribute_changes</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec (and spatie v4 docs) assume attribute diffs live in
+            <code>activity.properties</code> (<code>['attributes' =&gt; ..., 'old' =&gt; ...]</code>).
+            Composer resolved spatie/laravel-activitylog <strong>v5.0</strong>, which moved model
+            diffs to a dedicated <code>attribute_changes</code> JSON column;
+            <code>properties</code> is now reserved for custom <code>withProperties()</code> data.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Tests and the tour doc read <code>$activity-&gt;attribute_changes['attributes']</code> /
+            <code>['old']</code>. The trait also moved namespaces
+            (<code>Spatie\Activitylog\Models\Concerns\LogsActivity</code>,
+            <code>Spatie\Activitylog\Support\LogOptions</code>) — verified against vendor source.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Pinning activitylog to v4 — rejected: v5 is the version that supports Laravel 13, and teaching the current API is the point of the repo.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Migrations — identical timestamps from batch <code>make:model</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            Running five <code>php artisan make:model -mf</code> commands in one shell invocation produced
+            five migrations with the same timestamp. Laravel falls back to alphabetical order on ties,
+            which would run <code>create_notes_table</code> before <code>create_requests_table</code> and
+            fail on the foreign key.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Renamed the files with sequential timestamps (…531 customers, …532 categories, …533 mailboxes,
+            …534 requests, …535 notes) so filename order equals dependency order. Called out in the tour doc
+            as part of the migration-ordering lesson.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>Combining all tables into one migration file — rejected: per-table migrations match Laravel convention and teach ordering explicitly.</dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>UserFactory — automatic personal-team creation disabled (user direction)</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The starter kit's <code>UserFactory::configure()</code> created a personal team per user via an
+            <code>afterCreating</code> hook, which gave the demo seeder 5 teams instead of the single
+            "HelpStripe Support" installation. The user directed: disable personal-team creation — this
+            project doesn't need it.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Removed the automatic hook; the behavior is now an opt-in <code>withPersonalTeam()</code> factory
+            state. Six starter test files that exercise personal-team behavior (auth redirects, team deletion
+            fallbacks, dashboard) opt in explicitly, preserving their original preconditions. DemoSeeder went
+            back to plain <code>User::factory()</code> — no more <code>forceCreate</code> workaround.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Also removing personal-team creation from the Fortify registration flow
+            (<code>CreateNewUser</code> still creates one) — deferred: the app's routes are team-scoped
+            (<code>/{current_team}/dashboard</code>), so a team-less registrant would 403 after registering.
+            What team a fresh registrant should get is a product decision for a later phase;
+            <code>CreateNewUser</code> is the one remaining personal-team creation site.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Test runner — laravel/pao suppresses Pest output under agents</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The starter kit ships <code>laravel/pao</code>, which detects agent sessions and rewrites Pest
+            output as a single JSON line — and emitted <em>nothing</em> for fatal bootstrap errors
+            (the trait collision was invisible: exit 1, zero bytes of output).
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Used <code>PAO_DISABLE=1</code> when debugging to get real error output. Validation commands in CI
+            paths (<code>composer test</code>, <code>./init.sh</code>) left untouched.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>None needed — environment quirk, not a code decision.</dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

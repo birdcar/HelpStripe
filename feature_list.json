@@ -5,9 +5,9 @@
       "name": "Foundation & Domain Models",
       "description": "Spatie installs (permission, activitylog, tags), Request/Customer/Category/Mailbox/Note models + enums, permission groups, factories, DemoSeeder, tour doc 01. Spec: docs/ideation/helpstripe/spec-phase-1.md",
       "dependencies": [],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; migrate:fresh --seed builds the documented demo dataset; Foundation tests green; docs/tour/01-foundation.md demo script works",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → pint passed, phpstan 0 errors, pest 88/88 (577 assertions). php artisan migrate:fresh --seed → 1 team, 4 users, 3 categories, 2 mailboxes, 8 customers, 40 requests (10 unassigned, 4 urgent), 140 notes. php artisan test --compact --filter=Foundation → 28 passed. Tour demo script verified via tinker."
     },
     {
       "id": "feat-002",

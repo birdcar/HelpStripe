@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -16,6 +17,7 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
@@ -34,13 +36,32 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Collection<int, Team> $ownedTeams
  * @property-read Collection<int, Membership> $teamMemberships
  * @property-read Collection<int, Team> $teams
+ * @property-read Collection<int, Request> $assignedRequests
  */
 #[Fillable(['name', 'email', 'password', 'current_team_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
-    /** @use HasFactory<UserFactory> */
-    use HasFactory, HasTeams, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    /**
+     * HasRoles is spatie/laravel-permission's entry point: it gives the user
+     * `assignRole()`, `hasRole()`, and `can()` checks backed by the roles /
+     * permissions tables. These spatie roles power *helpdesk* authorization
+     * (Administrator vs. Help Desk Staff) — the starter kit's TeamRole enum
+     * continues to govern team-settings screens independently.
+     *
+     * Trait collision lesson: both HasTeams (starter kit) and HasRoles
+     * (spatie, with its own optional teams feature) define a `teams()`
+     * method. PHP refuses to guess, so we resolve it explicitly below:
+     * `insteadof` keeps the starter's relation as `teams()`, and spatie's
+     * is aliased to `permissionTeams()` (unused — spatie teams are
+     * disabled in config/permission.php, so it returns no rows).
+     *
+     * @use HasFactory<UserFactory>
+     */
+    use HasFactory, HasRoles, HasTeams, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable {
+        HasTeams::teams insteadof HasRoles;
+        HasRoles::teams as permissionTeams;
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -54,6 +75,19 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Get the helpdesk requests assigned to this staff member.
+     *
+     * `Request` here is App\Models\Request (same namespace) — the column is
+     * `assigned_to` rather than `user_id`, so it's passed explicitly.
+     *
+     * @return HasMany<Request, $this>
+     */
+    public function assignedRequests(): HasMany
+    {
+        return $this->hasMany(Request::class, 'assigned_to');
     }
 
     /**

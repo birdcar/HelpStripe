@@ -6,8 +6,8 @@ use App\Models\User;
 use Livewire\Livewire;
 
 test('team member role can be updated by owner', function () {
-    $owner = User::factory()->create();
-    $member = User::factory()->create();
+    $owner = User::factory()->withPersonalTeam()->create();
+    $member = User::factory()->withPersonalTeam()->create();
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -23,9 +23,9 @@ test('team member role can be updated by owner', function () {
 });
 
 test('team member role cannot be updated by non owner', function () {
-    $owner = User::factory()->create();
-    $admin = User::factory()->create();
-    $member = User::factory()->create();
+    $owner = User::factory()->withPersonalTeam()->create();
+    $admin = User::factory()->withPersonalTeam()->create();
+    $member = User::factory()->withPersonalTeam()->create();
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -40,8 +40,8 @@ test('team member role cannot be updated by non owner', function () {
 });
 
 test('team member can be removed by owner', function () {
-    $owner = User::factory()->create();
-    $member = User::factory()->create();
+    $owner = User::factory()->withPersonalTeam()->create();
+    $member = User::factory()->withPersonalTeam()->create();
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -58,9 +58,9 @@ test('team member can be removed by owner', function () {
 });
 
 test('team member cannot be removed by non owners', function () {
-    $owner = User::factory()->create();
-    $admin = User::factory()->create();
-    $member = User::factory()->create();
+    $owner = User::factory()->withPersonalTeam()->create();
+    $admin = User::factory()->withPersonalTeam()->create();
+    $member = User::factory()->withPersonalTeam()->create();
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
@@ -76,8 +76,8 @@ test('team member cannot be removed by non owners', function () {
 });
 
 test('removed members current team is set to personal team', function () {
-    $owner = User::factory()->create();
-    $member = User::factory()->create();
+    $owner = User::factory()->withPersonalTeam()->create();
+    $member = User::factory()->withPersonalTeam()->create();
     $personalTeam = $member->personalTeam();
     $team = Team::factory()->create();
 

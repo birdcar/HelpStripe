@@ -17,6 +17,11 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+
+                    {{-- Placeholder: routes to the dashboard until Phase 2 ships the request queue page. --}}
+                    <flux:sidebar.item icon="inbox" :href="route('dashboard')" wire:navigate>
+                        {{ __('Queue') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

@@ -12,7 +12,7 @@ test('login screen can be rendered', function () {
 });
 
 test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withPersonalTeam()->create();
 
     $response = $this->post(route('login.store'), [
         'email' => $user->email,
@@ -27,7 +27,7 @@ test('users can authenticate using the login screen', function () {
 });
 
 test('passkey login response redirects to the current team dashboard', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withPersonalTeam()->create();
 
     $request = Request::create(route('login', absolute: false), 'GET', server: [
         'HTTP_ACCEPT' => 'application/json',
@@ -41,7 +41,7 @@ test('passkey login response redirects to the current team dashboard', function 
 });
 
 test('users can not authenticate with invalid password', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withPersonalTeam()->create();
 
     $response = $this->post(route('login.store'), [
         'email' => $user->email,
@@ -63,7 +63,7 @@ test('users with two factor enabled are redirected to two factor challenge', fun
         'confirmPassword' => true,
     ]);
 
-    $user = User::factory()->withTwoFactor()->create();
+    $user = User::factory()->withPersonalTeam()->withTwoFactor()->create();
 
     $response = $this->post(route('login.store'), [
         'email' => $user->email,
@@ -75,7 +75,7 @@ test('users with two factor enabled are redirected to two factor challenge', fun
 });
 
 test('users can logout', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withPersonalTeam()->create();
 
     $response = $this->actingAs($user)->post(route('logout'));
 

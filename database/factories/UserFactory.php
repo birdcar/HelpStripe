@@ -39,11 +39,16 @@ class UserFactory extends Factory
     }
 
     /**
-     * Configure the model factory.
+     * Give the user an auto-created personal team, mirroring the starter
+     * kit's registration flow.
+     *
+     * HelpStripe is a single-team helpdesk installation, so the factory no
+     * longer creates a personal team per user by default — tests that
+     * exercise the starter's personal-team behavior opt in with this state.
      */
-    public function configure(): static
+    public function withPersonalTeam(): static
     {
-        return $this->afterCreating(function ($user) {
+        return $this->afterCreating(function (User $user) {
             $team = Team::factory()->personal()->create([
                 'name' => $user->name."'s Team",
             ]);
