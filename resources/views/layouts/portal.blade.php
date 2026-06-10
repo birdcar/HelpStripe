@@ -6,8 +6,9 @@
     components opt in via #[Layout('layouts::portal')].
 
     Created by Phase 5 (knowledge base); Phase 4 (self-service portal)
-    extends it with the submit/status navigation when it lands — the
-    Route::has() guards keep the two phases order-independent.
+    extended it with the submit/check-status navigation — the Route::has()
+    guards keep the two phases order-independent, so each nav link only
+    appears once its phase has shipped.
 --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
@@ -26,6 +27,18 @@
                 </a>
 
                 <nav class="flex items-center gap-4 text-sm">
+                    @if (Route::has('portal.submit'))
+                        <flux:link :href="route('portal.submit')" wire:navigate>
+                            {{ __('Submit a request') }}
+                        </flux:link>
+                    @endif
+
+                    @if (Route::has('portal.lookup'))
+                        <flux:link :href="route('portal.lookup')" wire:navigate>
+                            {{ __('Check a request') }}
+                        </flux:link>
+                    @endif
+
                     @if (Route::has('portal.kb.index'))
                         <flux:link :href="route('portal.kb.index')" wire:navigate>
                             {{ __('Knowledge Base') }}

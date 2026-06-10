@@ -13,17 +13,56 @@ Route::view('/', 'welcome')->name('home');
 // in bootstrap/app.php: external senders can't carry a CSRF token.
 Route::webhooks('webhooks/resend', 'resend');
 
-// The public knowledge base — no auth, no team in the URL: customers
-// browse THE installation's published books. Nested slugs resolve within
-// their parent via scopeBindings(): `{chapter:slug}` is looked up through
-// $book->chapters() and `{page:slug}` through $chapter->pages(), so two
-// books can each have an "introduction" chapter without cross-resolving.
+// The public self-service portal — the unauthenticated half of HelpStripe.
+// Customers have no accounts (see App\Models\Customer); they submit a
+// request, get a confirmation email carrying a 12-char access key + a
+// signed status link, and return to check status either via that signed
+// link or by entering email + access key. The knowledge base lives here
+// too (Phase 5). Three middleware stacks meet in this one group — none,
+// `throttle`, and `signed` — which is the phase's core routing lesson:
+// contrast with the `{current_team}` group below (auth + verified +
+// team-membership).
 //
 // Registration order matters twice here: this group must precede the
 // `{current_team}` group below (or /portal would be captured as a team
 // slug), and kb/search must precede kb/{book:slug} (or "search" would be
 // parsed as a book slug).
+//
+// Nested KB slugs resolve within their parent via scopeBindings():
+// `{chapter:slug}` is looked up through $book->chapters() and
+// `{page:slug}` through $chapter->pages(), so two books can each have an
+// "introduction" chapter without cross-resolving.
 Route::prefix('portal')->name('portal.')->group(function () {
+    Route::livewire('/', 'pages::portal.home')->name('home');
+
+    // Submit and manual lookup are write-ish public endpoints, so they're
+    // rate-limited: throttle:10,1 allows 10 hits per minute per client
+    // before a raw 429. The cap blunts access-key brute forcing on lookup
+    // and spam on submit — named explicitly as the phase's throttling
+    // lesson (production would add a captcha/honeypot too).
+    Route::livewire('submit', 'pages::portal.submit')
+        ->middleware('throttle:10,1')
+        ->name('submit');
+
+    Route::livewire('lookup', 'pages::portal.lookup')
+        ->middleware('throttle:10,1')
+        ->name('lookup');
+
+    // One status page, two ways in:
+    //  - the `signed` route is the link baked into the confirmation email
+    //    (URL::signedRoute). The `signed` middleware verifies the HMAC
+    //    signature on every request — a tampered or APP_KEY-rotated URL
+    //    403s. No session, no password: the signature IS the credential.
+    //  - the unsigned route is reached after a manual email+key lookup,
+    //    which sets a session flag the page checks. The signed-link grant
+    //    also writes that flag so a returning visitor isn't re-prompted.
+    Route::livewire('requests/{request}/status', 'pages::portal.status')
+        ->middleware('signed')
+        ->name('status');
+
+    Route::livewire('requests/{request}', 'pages::portal.status')
+        ->name('status.show');
+
     Route::livewire('kb', 'pages::portal.kb.index')->name('kb.index');
     Route::livewire('kb/search', 'pages::portal.kb.search')->name('kb.search');
     Route::livewire('kb/{book:slug}', 'pages::portal.kb.book')->name('kb.book');

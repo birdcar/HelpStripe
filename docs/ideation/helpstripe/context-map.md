@@ -1,5 +1,64 @@
 # Context Map: helpstripe
 
+**Phase**: 4
+**Scout Confidence**: 92/100
+**Verdict**: GO
+
+> Phase 4 (Self-Service Portal) ran inline scout (same read-only workflow). feat-004 depends on feat-003 (done). Phase 5 already shipped `layouts/portal.blade.php` + the `portal` route group — Phase 4 EXTENDS both. Phase 4 findings added below; all prior phase sections retained.
+
+## Phase 4 Findings (Self-Service Portal)
+
+**Verdict GO (92/100).** Every file is identified; the portal half is already partly built (KB pages + layout + route group), the email/access-key auth model already exists (Phase 3), and `CreateRequest`/`AddNote`/`ChangeStatus` are the reused write-paths.
+
+### Dimensions (Phase 4)
+
+| Dimension | Score | Notes |
+| --- | --- | --- |
+| Scope clarity | 19/20 | All files identified. Open Q: exact session-key + signed-route param shape — resolved during build. |
+| Pattern familiarity | 19/20 | Portal layout, portal KB SFCs, register form, request ⚡show timeline markup all read. |
+| Dependency awareness | 18/20 | `CreateRequest`/`AddNote`/`ChangeStatus` reused; route-group ordering constraint known. |
+| Edge case coverage | 18/20 | Private-note leak, generic lookup error, signature tamper, reopen-on-reply, customer dedup, case-sensitive key. |
+| Test strategy | 18/20 | HTTP/Livewire feature tests; `RefreshDatabase`; factories; portal KB tests are the template. |
+
+### Key Patterns (Phase 4)
+
+- `resources/views/layouts/portal.blade.php` — EXISTS (Phase 5). Brand header with `Route::has('portal.home')` + `Route::has('portal.kb.index')` guards. Phase 4 adds Submit/Check-status nav links (also `Route::has`-guarded so order stays flexible). Do NOT recreate.
+- `resources/views/pages/portal/kb/⚡index.blade.php` + `⚡search.blade.php` — the portal SFC template: `new #[Layout('layouts::portal')] #[Title('…')] class extends Component`, `#[Computed]`, `#[Url]`, `wire:model`/`wire:submit`, `data-test` attrs, flux:input/flux:heading/flux:text/flux:link, zinc dark-mode classes. Portal pages use `layouts::portal`, NOT `layouts::app`.
+- `resources/views/pages/auth/register.blade.php` — public form layout reference (plain `<form>` + flux:input + flux:button). Portal submit is a Livewire `wire:submit` form (not a POST controller) to match the portal SFC pattern.
+- `app/Actions/Requests/CreateRequest.php` — `handle(Customer, string subject, string body, RequestSource, array attributes): Request`. Portal calls with `RequestSource::Portal`. Fires `RequestCreated`, makes opening note inside a transaction, derives `access_key` via `Request::boot()` creating hook (`Str::random(12)`).
+- `app/Actions/Requests/AddNote.php` — `handle(Request, User|Customer author, string body, bool isPrivate, RequestSource source, ?string messageId, array attachments): Note`. Customer reply = Customer author + `RequestSource::Portal`, isPrivate false. Broadcasts NoteAdded (presence channel) — harmless on portal (no socket id).
+- `app/Jobs/ProcessInboundEmail.php:107-131` — the canonical "new request → confirmation mail" sequence to mirror: `CreateRequest::handle(... source ...)` then `Mail::to($customer->email)->send(new NewRequestConfirmationMail($request))`. Portal does the same but with `RequestSource::Portal`.
+- `app/Jobs/ProcessInboundEmail.php:100-105` — reopen logic: customer reply to Resolved/Closed → `ChangeStatus::handle($request, RequestStatus::Active)`. Portal customer reply mirrors this exactly.
+- `app/Mail/NewRequestConfirmationMail.php` + `resources/views/mail/new-request-confirmation.blade.php` — carries `$request->id` + `$request->access_key`. Already built (Phase 3). The page shows the request NUMBER only; the access key rides the email.
+- `resources/views/pages/requests/⚡show.blade.php:527-562` — timeline note markup (customer vs staff vs private). Portal status timeline renders ONLY `is_private = false` notes — private notes must never appear (dedicated leak test).
+- `App\Models\Customer` — `firstOrCreate`/dedup by lowercased email (mirror RequestController::resolveCustomer + ProcessInboundEmail). No user account.
+- `App\Http\Requests\Api\StoreRequestRequest::installationTeam()` — `Team::query()->orderBy('id')->first()`. The portal has no tenant context either → lands requests on the installation team, same fallback.
+
+### Dependencies (Phase 4)
+
+- `routes/web.php` — the `portal` group (currently KB-only) gains home/submit/lookup/status routes. MUST stay before `{current_team}`. Throttle `throttle:10,1` on submit + lookup. Status route gets `signed` middleware on its signed-link variant.
+- `resources/views/welcome.blade.php` — add a portal link (demos start at `/`). It's the framework starter welcome page (no Flux).
+- `database/seeders/DemoSeeder.php` — `seedRequests()` already creates Portal-source requests. Add: print one seeded request's `access_key` + customer email to seeder output (`$this->command->info(...)`) for demo convenience.
+- `App\Actions\Requests\CreateRequest` — no change needed (portal passes `RequestSource::Portal`); the portal component sends the confirmation mail itself, exactly like ProcessInboundEmail does. (Spec's "Modified Files" lists CreateRequest, but the mail-send belongs in the portal component to match the existing email-pipeline split where the JOB sends the mail, not the action. Logged as an implementation note.)
+
+### Conventions (Phase 4)
+
+- **Naming**: portal SFCs at `resources/views/pages/portal/⚡{home,submit,lookup,status}.blade.php`. Tests at `tests/Feature/Portal/{SubmitRequest,Lookup,CustomerReply}Test.php`.
+- **Layout**: `#[Layout('layouts::portal')]` on every portal page component.
+- **Routes**: `Route::livewire('…', 'pages::portal.{name}')->name('…')` inside the `portal.` group.
+- **Tests**: Pest feature tests, `RefreshDatabase` (global in Pest.php), `$this->get(route(...))`, `Livewire::test(...)` for component flows, `Mail::fake()` + `Mail::assertQueued/assertSent`, `Customer::factory()`, `Team::factory()`.
+
+### Risks (Phase 4)
+
+- **Private-note leak** — the status timeline must filter `is_private = false`. Dedicated test asserting a private note's body is absent from rendered HTML (spec Failure Mode).
+- **Route-group ordering** — portal routes must precede `{current_team}` (already true; new routes go inside the existing group).
+- **Signed URL + session** — `URL::signedRoute('portal.status', ['request' => $id])` + `signed` middleware on that path; manual lookup sets a session key (`portal.verified.{id}`) so the reply box doesn't re-prompt. Generic "no match" error on failed lookup (no enumeration).
+- **Throttle test** — hitting the 11th submit/lookup in a minute → 429. Tests may need to clear the rate limiter between cases or assert within one test.
+
+---
+
+## Phase 8 Header (superseded — see top)
+
 **Phase**: 8
 **Scout Confidence**: 90/100
 **Verdict**: GO

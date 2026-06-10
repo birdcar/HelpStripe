@@ -64,6 +64,41 @@ class DemoSeeder extends Seeder
         $this->seedResponses($team);
         $this->seedFilters($team, $staff);
         $this->seedKnowledgeBase($team);
+
+        $this->printPortalDemoCredentials();
+    }
+
+    /**
+     * Print one request's portal access credentials to the seeder output.
+     *
+     * The self-service portal (Phase 4) authenticates customers with their
+     * email + a per-request access key — normally delivered by the
+     * confirmation email. For a demo without a running mail/queue worker,
+     * surfacing a known email + key here lets you exercise the email+key
+     * lookup path immediately after `migrate:fresh --seed`. (The signed-link
+     * path still needs the email; this is the offline fallback the spec's
+     * Failure Modes table calls for.)
+     */
+    private function printPortalDemoCredentials(): void
+    {
+        if ($this->command === null) {
+            return;
+        }
+
+        $request = Request::query()
+            ->with('customer')
+            ->whereIn('status', RequestStatus::open())
+            ->orderBy('id')
+            ->first();
+
+        if ($request === null) {
+            return;
+        }
+
+        $this->command->info('Portal demo — check status at /portal/lookup with:');
+        $this->command->info("  Request:    #{$request->id} ({$request->subject})");
+        $this->command->info("  Email:      {$request->customer->email}");
+        $this->command->info("  Access key: {$request->access_key}");
     }
 
     /**

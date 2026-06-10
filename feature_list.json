@@ -32,9 +32,9 @@
       "name": "Self-Service Portal",
       "description": "Public portal layout, submit form, confirmation email with access key, email+key status lookup, customer replies. Spec: docs/ideation/helpstripe/spec-phase-4.md",
       "dependencies": ["feat-003"],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; Portal tests green (incl. no private-note leak); docs/tour/04-portal.md demo script works",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → pint passed, phpstan 0 errors, pest 302/302 (1113 assertions). php artisan test --compact --filter=Portal → 40 passed (24 new Portal: SubmitRequest 9, Lookup 9, CustomerReply 6 + 16 KB portal-browsing). migrate:fresh --seed prints portal demo credentials (request #/email/access_key) for offline lookup. Public portal extends Phase 5's layouts/portal.blade.php + portal route group (NOT recreated): pages/portal/⚡{home,submit,lookup,status} SFCs under #[Layout('layouts::portal')]. Three middleware stacks in one group — none / throttle:10,1 (submit+lookup) / signed (email-link status route). Two routes → one ⚡status component: portal.status (signed) + portal.status.show (session-verified). Submit reuses CreateRequest(source=Portal) + queues NewRequestConfirmationMail (mail sent by the component, mirroring ProcessInboundEmail — CreateRequest left untouched). Customer dedup by lowercased email; reply via AddNote(Customer, Portal) reopens Resolved/Closed via ChangeStatus. Private notes filtered at the query (is_private=false) — dedicated leak test asserts a private body is absent from HTML. Generic lookup error (no enumeration); 12-char access key + throttle (residual brute-force risk named in doc). Review cycle 1 of 3 PASS (inline; Agent subagent unavailable in this session — same read-only criteria; 0 critical/high). docs/tour/04-portal.md + README link."
     },
     {
       "id": "feat-005",

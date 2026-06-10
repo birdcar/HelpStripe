@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 4</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 4</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Self-Service Portal</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Confirmation mail sent from the submit component, not <code>CreateRequest</code></h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's "Modified Files" lists
+            <code>app/Actions/Requests/CreateRequest.php</code> with "Ensure source=Portal path
+            sends NewRequestConfirmationMail (queued)". But the existing email pipeline keeps the
+            mail-send <em>out</em> of the action: <code>ProcessInboundEmail</code> (the job) calls
+            <code>CreateRequest</code> and then sends the mail itself. The action is the shared
+            write-path used by the agent UI, API, email, and now the portal.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Left <code>CreateRequest</code> untouched and queued
+            <code>NewRequestConfirmationMail</code> from <code>⚡submit</code>, mirroring
+            <code>ProcessInboundEmail</code> line-for-line. Putting the send in the action would
+            have fired a confirmation email on <em>every</em> agent-created and API-created request
+            too — the agent UI files requests on customers' behalf and must not blast them a "we
+            received your request" email. The channel that owns the customer relationship sends the
+            mail; the action just opens the request.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A <code>source === Portal</code> branch inside <code>CreateRequest</code> — rejected:
+            channel-specific side effects in a channel-agnostic action is exactly the coupling the
+            shared write-path exists to avoid, and it contradicts the established Phase 3 split.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Throttle sits on the page-load route, not the Livewire form POST</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec wants <code>throttle:10,1</code> on submit/lookup and the experiment reads
+            "11th submit in a minute → 429". But the forms are Livewire components: the submit
+            action is an AJAX POST to <code>/livewire/update</code>, not to the
+            <code>portal/submit</code> route. Livewire only re-applies a fixed set of
+            <em>persistent</em> middleware to update requests, and <code>throttle</code> isn't one
+            (persistent middleware can't take arguments, per the Livewire 4 security docs).
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Kept <code>throttle:10,1</code> on the GET routes (it throttles page loads — the honest
+            thing the middleware actually does) and wrote <code>SubmitRequestTest</code> to assert
+            the 11th <code>GET /portal/submit</code> in a minute returns 429. The tour doc
+            (§2) explains the page-load-vs-POST nuance explicitly rather than papering over it.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A custom rate limiter applied via <code>Livewire::setUpdateRoute()</code> or a
+            per-component throttle on the action — rejected: global to all Livewire updates (wrong
+            blast radius) or substantially more machinery than a teaching repo's "throttle, taught
+            explicitly" warrants. Route-level throttling is the idiomatic, documented approach.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>One status component, two routes (signed + session-verified)</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec describes "two access paths to the same status page" — a signed URL from the
+            email and a manual lookup — but both must land on "one route handler". A single route
+            can't carry the <code>signed</code> middleware <em>and</em> be reachable without a
+            signature (the manual-lookup landing).
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Registered two routes pointing at the same <code>⚡status</code> component:
+            <code>portal.status</code> (with <code>signed</code> middleware — the email link) and
+            <code>portal.status.show</code> (unsigned — the manual-lookup landing). The component's
+            <code>mount()</code> grants a session flag <code>portal.verified.{id}</code> on a valid
+            signature, then <code>abort_unless</code>es on that flag — so the unsigned route is
+            gated by the session a prior signed visit or manual lookup set. Same handler, two doors.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            One route with conditional middleware, or stuffing the access key into the URL — rejected:
+            conditional middleware can't be expressed cleanly on a Livewire route, and an access key
+            in the URL would land in browser history and server logs. The signature is the
+            credential for the link path; the session flag for the lookup path.
+          </dd>
+        </dl>
+      </section>
+
+      <section class="note-entry">
+        <h3>Portal pages read the installation team via the same fallback as the API</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The portal is unauthenticated — there's no <code>current_team_id</code> to scope
+            categories or customer lookups by. The spec assumes "one seeded team = the
+            installation" but doesn't say how the public pages reach it.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Used the identical fallback the inbound email pipeline and API already established:
+            <code>Team::query()->orderBy('id')->first()</code> (see
+            <code>StoreRequestRequest::installationTeam()</code>). The submit page's category select
+            and the lookup's request resolution both scope to that team. Inlined the one-liner in
+            each portal component rather than extracting a shared helper — it's three call sites and
+            the existing API code already duplicates it; a premature abstraction would be the only
+            new thing to learn.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A <code>config('helpstripe.team_id')</code> or a global scope — rejected: the
+            order-by-id-first fallback is already the codebase's documented convention for "the
+            installation", and matching it keeps the three public channels consistent.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>
