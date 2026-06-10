@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 3</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 3</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Shared Inbox &amp; Email Pipeline</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>API intake — which team a request lands on</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec describes <code>POST /api/v1/requests</code> with a single
+            static bearer token but doesn't say which tenant/team a request
+            belongs to. <code>CreateRequest</code> derives the team from the
+            customer (<code>$customer-&gt;team_id</code>), so the customer must
+            be resolved against <em>some</em> team first.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Resolve the team as <code>Team::orderBy('id')-&gt;first()</code> —
+            the installation's team — exactly as the inbound email pipeline
+            falls back to the first mailbox. The repo's standing decision is
+            "one seeded team = the installation," and the static token has no
+            tenant context of its own. The <code>category_id</code> validation
+            rule is scoped to this team so cross-tenant ids 422.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Carry a team id (or per-team token) in config. Rejected: it adds
+            multi-tenant machinery the teaching repo doesn't otherwise have,
+            and the tour doc already names Sanctum as the production path where
+            per-client scoping belongs.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>mail:replay — faking the attachment binary fetch offline</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            <code>ProcessInboundEmail</code> downloads attachment binaries from
+            Resend's short-lived CDN <code>download_url</code> (distinct from
+            the <code>api.resend.com</code> content/listing endpoints). The
+            spec's offline-replay requirement means the command must not hit the
+            network at all, but the spec only mentions faking "the Resend
+            content/attachment endpoints."
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The command reads each <code>download_url</code> straight out of the
+            fixture's attachment listing and registers an <code>Http::fake</code>
+            stub for it returning placeholder PDF bytes — alongside the content
+            and listing stubs. Per-fixture exact-URL stubs (rather than a
+            <code>*</code> wildcard) avoid the wildcard intercepting the next
+            fixture's content fetch when replaying all fixtures in one run.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A catch-all <code>'*'</code> stub for attachment bytes. Rejected:
+            <code>Http::fake</code> matches in declaration order and a trailing
+            <code>*</code> from one fixture's <code>fake()</code> call leaked
+            into the next replay, returning a non-JSON body where the email
+            content was expected and tripping the job's array return type.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

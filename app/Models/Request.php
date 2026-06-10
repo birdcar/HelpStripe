@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\RequestSource;
 use App\Enums\RequestStatus;
+use App\Support\Resend\InboundEmail;
 use Database\Factories\RequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -193,6 +194,47 @@ class Request extends Model
             ->with(['user', 'customer'])
             ->latest()
             ->latest('id');
+    }
+
+    /**
+     * Find the existing request an inbound email belongs to, if any.
+     *
+     * Matching strategy, strongest signal first:
+     *
+     *  1. Threading headers — the email's In-Reply-To/References ids are
+     *     matched against `notes.message_id` (we store the Message-ID of
+     *     every email-borne note, inbound and outbound). Mail clients
+     *     preserve these automatically, so this catches normal replies.
+     *  2. Subject token — the `[#id]` we put in every outbound subject.
+     *     Survives clients that strip threading headers; scoped to the
+     *     receiving mailbox's team so a pasted token can't land a note
+     *     on another installation's request.
+     *
+     * Returns null when neither matches — the caller opens a new request.
+     */
+    public static function findForInbound(InboundEmail $email, ?Mailbox $mailbox = null): ?self
+    {
+        $referencedIds = $email->referencedMessageIds();
+
+        if ($referencedIds !== []) {
+            $note = Note::query()
+                ->whereIn('message_id', $referencedIds)
+                ->latest('id')
+                ->first();
+
+            if ($note !== null) {
+                return $note->request;
+            }
+        }
+
+        if (preg_match('/\[#(\d+)\]/', $email->subject, $matches) === 1) {
+            return self::query()
+                ->whereKey((int) $matches[1])
+                ->when($mailbox !== null, fn ($query) => $query->where('team_id', $mailbox->team_id))
+                ->first();
+        }
+
+        return null;
     }
 
     /**

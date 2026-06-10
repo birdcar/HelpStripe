@@ -1,0 +1,74 @@
+{
+    "_comment": "A fresh email to the billing mailbox carrying a PDF receipt. The binary lives behind attachments.data[0].download_url — tests and mail:replay fake that URL with placeholder bytes.",
+    "webhook": {
+        "type": "email.received",
+        "created_at": "2026-06-10T15:00:00.000Z",
+        "data": {
+            "email_id": "f1e2d3c4-0000-4000-8000-aaaaaaaaaaa3",
+            "created_at": "2026-06-10T14:59:59.000000+00:00",
+            "from": "Riley Receipts <riley@customer.example>",
+            "to": ["billing@helpstripe.test"],
+            "cc": [],
+            "bcc": [],
+            "message_id": "<demo-attachment@customer.example>",
+            "subject": "Charged twice last month",
+            "attachments": [
+                {
+                    "id": "2a0c9ce0-3112-4728-976e-47ddcd16a318",
+                    "filename": "receipt.pdf",
+                    "content_type": "application/pdf",
+                    "content_disposition": "attachment",
+                    "content_id": ""
+                }
+            ]
+        }
+    },
+    "email": {
+        "object": "email",
+        "id": "f1e2d3c4-0000-4000-8000-aaaaaaaaaaa3",
+        "from": "Riley Receipts <riley@customer.example>",
+        "to": ["billing@helpstripe.test"],
+        "created_at": "2026-06-10T14:59:59.000000+00:00",
+        "subject": "Charged twice last month",
+        "html": "<p>Receipt attached — I was billed twice on the 1st.</p>",
+        "html_format": "data_uri",
+        "text": "Receipt attached — I was billed twice on the 1st.",
+        "headers": {
+            "from": "Riley Receipts <riley@customer.example>",
+            "mime-version": "1.0"
+        },
+        "bcc": [],
+        "cc": [],
+        "reply_to": [],
+        "message_id": "<demo-attachment@customer.example>",
+        "raw": {
+            "download_url": "https://example.resend.com/receiving/raw/demo-attachment",
+            "expires_at": "2026-06-10T16:00:00.000Z"
+        },
+        "attachments": [
+            {
+                "id": "2a0c9ce0-3112-4728-976e-47ddcd16a318",
+                "filename": "receipt.pdf",
+                "content_type": "application/pdf",
+                "content_disposition": "attachment",
+                "content_id": ""
+            }
+        ]
+    },
+    "attachments": {
+        "object": "list",
+        "has_more": false,
+        "data": [
+            {
+                "id": "2a0c9ce0-3112-4728-976e-47ddcd16a318",
+                "filename": "receipt.pdf",
+                "size": 2048,
+                "content_type": "application/pdf",
+                "content_disposition": "attachment",
+                "content_id": "",
+                "download_url": "https://inbound-cdn.resend.com/f1e2d3c4-0000-4000-8000-aaaaaaaaaaa3/attachments/2a0c9ce0-3112-4728-976e-47ddcd16a318?signature=demo",
+                "expires_at": "2026-06-10T16:00:00.000Z"
+            }
+        ]
+    }
+}

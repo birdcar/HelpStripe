@@ -5,6 +5,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
+// Resend posts inbound email events here. Route::webhooks() is a macro
+// registered by spatie/laravel-webhook-client: one POST route wired to
+// the package's controller, which validates the svix signature, stores
+// the call, and queues ProcessInboundEmail — see config/webhook-client.php
+// (config name 'resend' is the second argument). The path is CSRF-exempt
+// in bootstrap/app.php: external senders can't carry a CSRF token.
+Route::webhooks('webhooks/resend', 'resend');
+
 // The public knowledge base — no auth, no team in the URL: customers
 // browse THE installation's published books. Nested slugs resolve within
 // their parent via scopeBindings(): `{chapter:slug}` is looked up through

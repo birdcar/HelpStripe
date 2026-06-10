@@ -23,9 +23,9 @@
       "name": "Shared Inbox & Email Pipeline",
       "description": "Resend outbound (threading headers) + inbound webhook (spatie/webhook-client), attachments via medialibrary, mail:replay command, POST /api/v1/requests intake channel. Spec: docs/ideation/helpstripe/spec-phase-3.md",
       "dependencies": ["feat-002"],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; Inbox + Api tests green; mail:replay fixtures create/match requests; live Resend round-trip verified per docs/tour/03-shared-inbox.md",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → pint passed, phpstan 0 errors, pest 228/228 (923 assertions). php artisan test --compact --filter=Inbox → 27 passed (Webhook 6, Matching 8, Outbound 6, Replay 4, Attachment 3). --filter=CreateRequestApiTest → 7 passed. mail:replay all three fixtures create/thread requests offline (Http::fake'd). Review cycle 2 of 3 PASS (cycle 1 found 1 high/testing: attachment size-cap skip had no coverage → added InboundAttachmentTest; 1 medium/logic: controller null-team deref → abort_unless 503 guard). Live Resend round-trip: code path complete; requires one-time external setup (domain+MX+webhook secret) documented in docs/tour/03-shared-inbox.md §9B — not executed in this session."
     },
     {
       "id": "feat-004",

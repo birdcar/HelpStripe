@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
  * A single entry on a request's timeline: a public reply or a private
@@ -35,10 +37,24 @@ use Illuminate\Support\Carbon;
  * @property-read Customer|null $customer
  */
 #[Fillable(['request_id', 'user_id', 'customer_id', 'body', 'is_private', 'source', 'message_id'])]
-class Note extends Model
+class Note extends Model implements HasMedia
 {
     /** @use HasFactory<NoteFactory> */
-    use HasFactory;
+    use HasFactory, InteractsWithMedia;
+
+    /**
+     * Register the media collections for this model.
+     *
+     * Email attachments hang off the NOTE they arrived with, not the
+     * request — an attachment belongs to a specific message on the
+     * timeline, exactly like in a mail client. spatie/laravel-medialibrary
+     * handles storage, file naming, and the polymorphic `media` table;
+     * this model only declares the collection name.
+     */
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('attachments');
+    }
 
     /**
      * Get the helpdesk request this note belongs to.

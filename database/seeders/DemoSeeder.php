@@ -149,11 +149,20 @@ class DemoSeeder extends Seeder
     {
         $byName = $categories->keyBy('name');
 
+        // Mailbox addresses are derived from config('helpstripe.inbound_domain')
+        // rather than hardcoded: when a real Resend domain is wired up (set
+        // HELPSTRIPE_INBOUND_DOMAIN), the seeded support@/billing@ addresses
+        // automatically match it, so outbound replies send from a verified
+        // domain and inbound mail routes to the right mailbox. Defaults to
+        // helpstripe.test for the offline mail:replay demo path.
+        $domain = config('helpstripe.inbound_domain');
+
         return collect([
-            'Technical Support' => ['name' => 'Support', 'address' => 'support@helpstripe.test'],
-            'Billing' => ['name' => 'Billing', 'address' => 'billing@helpstripe.test'],
+            'Technical Support' => ['name' => 'Support', 'local' => 'support'],
+            'Billing' => ['name' => 'Billing', 'local' => 'billing'],
         ])->map(fn (array $attributes, string $categoryName) => Mailbox::factory()->create([
-            ...$attributes,
+            'name' => $attributes['name'],
+            'address' => "{$attributes['local']}@{$domain}",
             'team_id' => $team->id,
             'category_id' => $byName[$categoryName]->id,
         ]));

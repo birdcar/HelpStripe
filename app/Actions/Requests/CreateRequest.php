@@ -22,7 +22,13 @@ class CreateRequest
     /**
      * Open a new request for the customer with their initial message.
      *
-     * @param  array{category_id?: int|null, mailbox_id?: int|null, assigned_to?: int|null, is_urgent?: bool}  $attributes
+     * `message_id` is the email Message-ID of the opening message (when
+     * the request arrived by email) — it lands on the opening note inside
+     * the same transaction, so the inbound pipeline's idempotency check
+     * (note-with-this-message_id-exists?) can never observe a half-created
+     * request.
+     *
+     * @param  array{category_id?: int|null, mailbox_id?: int|null, assigned_to?: int|null, is_urgent?: bool, message_id?: string|null}  $attributes
      */
     public function handle(
         Customer $customer,
@@ -55,6 +61,7 @@ class CreateRequest
                 'body' => $body,
                 'is_private' => false,
                 'source' => $source,
+                'message_id' => $attributes['message_id'] ?? null,
             ]);
 
             return $request;

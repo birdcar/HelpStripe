@@ -48,3 +48,19 @@ function something()
 {
     // ..
 }
+
+/**
+ * Load a recorded Resend fixture (tests/Fixtures/resend/{name}.json).
+ *
+ * Each fixture bundles the webhook POST body (`webhook`), the email
+ * content the job fetches from the Resend API (`email`), and the
+ * attachment listing (`attachments`) — see the _comment key inside.
+ *
+ * @return array{webhook: array<string, mixed>, email: array<string, mixed>, attachments: array<string, mixed>}
+ */
+function resendFixture(string $name): array
+{
+    $path = base_path("tests/Fixtures/resend/{$name}.json");
+
+    return json_decode((string) file_get_contents($path), associative: true);
+}

@@ -1,0 +1,49 @@
+{
+    "_comment": "A reply to inbound-new: In-Reply-To/References carry the original Message-ID, so replaying inbound-new then inbound-reply threads this onto the request the first replay created.",
+    "webhook": {
+        "type": "email.received",
+        "created_at": "2026-06-10T14:30:00.000Z",
+        "data": {
+            "email_id": "f1e2d3c4-0000-4000-8000-aaaaaaaaaaa2",
+            "created_at": "2026-06-10T14:29:59.000000+00:00",
+            "from": "Dana Customer <dana@customer.example>",
+            "to": ["support@helpstripe.test"],
+            "cc": [],
+            "bcc": [],
+            "message_id": "<demo-reply@customer.example>",
+            "subject": "Re: Can't sign in to the dashboard",
+            "attachments": []
+        }
+    },
+    "email": {
+        "object": "email",
+        "id": "f1e2d3c4-0000-4000-8000-aaaaaaaaaaa2",
+        "from": "Dana Customer <dana@customer.example>",
+        "to": ["support@helpstripe.test"],
+        "created_at": "2026-06-10T14:29:59.000000+00:00",
+        "subject": "Re: Can't sign in to the dashboard",
+        "html": "<p>Forgot to say — I already tried resetting it twice.</p>",
+        "html_format": "data_uri",
+        "text": "Forgot to say — I already tried resetting it twice.",
+        "headers": {
+            "from": "Dana Customer <dana@customer.example>",
+            "mime-version": "1.0",
+            "in-reply-to": "<demo-original@customer.example>",
+            "references": "<demo-original@customer.example>"
+        },
+        "bcc": [],
+        "cc": [],
+        "reply_to": [],
+        "message_id": "<demo-reply@customer.example>",
+        "raw": {
+            "download_url": "https://example.resend.com/receiving/raw/demo-reply",
+            "expires_at": "2026-06-10T15:30:00.000Z"
+        },
+        "attachments": []
+    },
+    "attachments": {
+        "object": "list",
+        "has_more": false,
+        "data": []
+    }
+}

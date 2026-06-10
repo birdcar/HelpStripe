@@ -1,22 +1,33 @@
 # Context Map: helpstripe
 
-**Phase**: 5
-**Scout Confidence**: 89/100
+**Phase**: 3
+**Scout Confidence**: 90/100
 **Verdict**: GO
 
-> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2 sections retained below; Phase 5 findings added. (Phase 5 runs before 3/4 — it depends only on Phase 1.)
+> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2–5 sections retained below; Phase 3 findings added. (Phase 5 ran before 3/4 — it depends only on Phase 1.)
 
 ## Dimensions
 
-| Dimension            | Phase 1 | Phase 2 | Phase 5 | Notes (Phase 5)                                                                                                |
-| -------------------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| Scope clarity        | 19/20   | 19/20   | 18/20   | Spec enumerates every file. One real gap: Phase 4 hasn't run, so `layouts/portal.blade.php` and the portal route group don't exist — Phase 5 lands first and must create the minimal portal layout (spec-sanctioned: "whichever phase lands second completes the wiring"). |
-| Pattern familiarity  | 18/20   | 18/20   | 18/20   | Read `teams/⚡index.blade.php` (page + inline modal), `components/⚡create-team-modal.blade.php` (exists — standalone modal SFC, spec reference valid), `requests/⚡show.blade.php` (mount(Model) + Gate), Category model/migration/factory (Phase 1 model conventions), PermissionSeeder (`manage knowledge base` already seeded in PERMISSIONS const), Livewire 4 docs (`#[Layout('layouts::portal')]`), Laravel 13 docs (`#[Scope]` attribute — no scopes exist in app yet; Phase 5 introduces the first), sluggable API (HasSlug + SlugOptions->extraScope). |
-| Dependency awareness | 16/20   | 17/20   | 18/20   | All modified files additive: `routes/web.php` (admin kb routes inside `{current_team}` group + new public `portal/kb` group), `sidebar.blade.php` (new nav item under Queue), `DemoSeeder.php` (append seedKnowledgeBase — DemoSeederTest asserts exact counts, additions must not disturb), `composer.json` (+spatie/laravel-sluggable, spec-approved). No portal/⚡home.blade.php yet — teaser wiring deferred to Phase 4 per spec. |
-| Edge case coverage   | 16/20   | 17/20   | 17/20   | Slug collision across parents (extraScope), slug regen on rename → old slug 404, draft book hides published pages (visibility = book AND page), `<script>` in markdown escaped, LIKE `%`/`_` escaping, position max+1 per parent, cascade deletes, empty book TOC, staff (no permission) 403 + hidden nav. |
-| Test strategy        | 18/20   | 18/20   | 18/20   | `Livewire::test('pages::portal.kb.index')` + HTTP `get(route(...))` both established. RefreshDatabase global. Filters: `--filter=KnowledgeBase` hits tests/Feature/KnowledgeBase/*. Permission tests need PermissionSeeder seeded per-test (`$this->seed(PermissionSeeder::class)`) since RefreshDatabase wipes it. |
+| Dimension            | Phase 1 | Phase 2 | Phase 5 | Phase 3 | Notes (Phase 3)                                                                                                |
+| -------------------- | ------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | 19/20   | 19/20   | 18/20   | 18/20   | Spec enumerates every file. The spec's own Open Item resolved during scouting: Resend's current `email.received` webhook payload is **metadata only** (no body/headers/attachment content) — full content comes from `GET /emails/receiving/{id}` and attachments (with `download_url` + `size`) from `GET /emails/receiving/{id}/attachments`. Job design adapts: webhook → store → job fetches content via Http → DTO. |
+| Pattern familiarity  | 18/20   | 18/20   | 18/20   | 18/20   | Read CreateRequest/AddNote/ChangeStatus actions, Request/Note/Mailbox/Customer models, NoteAdded event, RequestAssignedNotification (queued mail pattern), DemoSeeder, phpunit.xml (MAIL_MAILER=array, QUEUE_CONNECTION=sync), Laravel 13 mail docs (Headers: messageId/references without angle brackets; resend transport needs resend/resend-php + services.resend.key — **already present** in config/services.php as RESEND_API_KEY). First Mailable, first Listener, first console command, first API route in the repo — framework conventions apply. |
+| Dependency awareness | 16/20   | 17/20   | 18/20   | 17/20   | AddNote/CreateRequest consumed by pages SFCs + ActionsTest/ShowRequestTest — signature changes must be additive (optional params). New SendPublicReplyEmail listener auto-discovers and will fire in every existing test that adds a public staff note (array mailer + sync queue render it inline — mailable must tolerate null mailbox). DemoSeederTest asserts `support@helpstripe.test`/`billing@helpstripe.test` — seeder address derivation must default to `helpstripe.test`. |
+| Edge case coverage   | 16/20   | 17/20   | 17/20   | 18/20   | Matrix from spec + scouting: header match → subject token → new request; unknown `to` → first mailbox; reopen on Resolved/Closed (reuse ChangeStatus — owns resolved_at); duplicate delivery idempotent on message_id; customer email case-insensitive match; oversize/failed attachments → skip + private note; malformed payload → failed_jobs while webhook 200s. |
+| Test strategy        | 18/20   | 19/20   | 18/20   | 19/20   | Pest feature tests; `--filter=Inbox` hits tests/Feature/Inbox/*. Webhook posts via `postJson` with computed svix signature over the exact raw body. Resend content/attachment APIs faked with `Http::fake()`. Outbound: `Mail::fake()` + direct mailable `headers()` assertions. Sync queue runs ProcessInboundEmail inline. |
 
 ## Key Patterns
+
+### Phase 3
+
+- `app/Actions/Requests/CreateRequest.php` — the single write-path for new requests: DB::transaction wrapping request + opening customer note, event dispatched after commit. Email/API channels call it with `source` + `$attributes` (gains `message_id` for the opening note).
+- `app/Actions/Requests/AddNote.php` — `handle(Request, User|Customer $author, string $body, bool $isPrivate, RequestSource $source)`; customer replies pass Customer author + RequestSource::Email. Gains optional `$messageId` + `$attachments` (downloaded temp files).
+- `app/Actions/Requests/ChangeStatus.php` — owns resolved_at lifecycle; the inbound reopen path MUST go through it (clears resolved_at, fires RequestStatusChanged).
+- `app/Notifications/RequestAssignedNotification.php` — queued mail pattern: `implements ShouldQueue`, `use Queueable`, constructor promotion, teaching docblocks.
+- Resend ground truth (verified 2026-06-10 against resend.com/docs): webhook `email.received` payload = `{type, created_at, data: {email_id, from, to[], cc, bcc, subject, message_id, attachments[meta]}}`; body/headers via `GET https://api.resend.com/emails/receiving/{id}` (`{html, text, headers{lowercased}, message_id, attachments[]}`); attachment binaries via `GET .../receiving/{id}/attachments` (`data[].{download_url, size, filename, content_type}`). Signature: svix headers (`svix-id`, `svix-timestamp`, `svix-signature` as space-separated `v1,<base64>` list), secret `whsec_<base64>`, HMAC-SHA256 over `"{id}.{timestamp}.{rawBody}"`.
+- Laravel mail Headers: `new Headers(messageId: 'note-1@domain', references: ['prior@domain'])` — IDs without angle brackets; Symfony adds them. Inbound Resend message_ids arrive WITH brackets — normalize (strip `<>`) at the DTO.
+- spatie/laravel-webhook-client: config `webhook-client.php` configs[] entry (name, signing_secret, signature_validator, webhook_profile, webhook_response, webhook_model, process_webhook_job); `Route::webhooks('webhooks/resend', 'resend')`; job extends `ProcessWebhookJob` with `$this->webhookCall->payload`. CSRF exemption via `$middleware->validateCsrfTokens(except:)` in bootstrap/app.php.
+- spatie/laravel-medialibrary: model `implements HasMedia` + `use InteractsWithMedia`; `$note->addMedia($tmpPath)->usingFileName(...)->toMediaCollection('attachments')`; publish `create_media_table` migration.
 
 ### Phase 5
 
@@ -48,6 +59,14 @@
 - `tests/Pest.php` — `RefreshDatabase` already applied to everything in `tests/Feature`.
 
 ## Dependencies
+
+### Phase 3
+
+- `app/Actions/Requests/AddNote.php` — consumed by `pages/requests/⚡show.blade.php` (reply box) and ActionsTest/ShowRequestTest; new params must be optional with defaults so existing call sites compile unchanged.
+- `app/Events/NoteAdded.php` — gains its first listener (SendPublicReplyEmail). Every existing test that adds a public staff note will now render PublicReplyMail to the array transport inline (sync queue) — the mailable must tolerate `mailbox_id = null` (fall back to `config('mail.from')`).
+- `database/seeders/DemoSeeder.php` — DemoSeederTest asserts `support@helpstripe.test` / `billing@helpstripe.test`; address derivation from `config('helpstripe.inbound_domain')` must default to `helpstripe.test`.
+- `bootstrap/app.php` — gains `api:` routing (first API route) + CSRF exemption for `webhooks/*`.
+- `composer.json` — +resend/resend-php, +spatie/laravel-webhook-client, +spatie/laravel-medialibrary (spec-approved).
 
 ### Phase 5
 
@@ -83,6 +102,14 @@
 - **Activity history**: activitylog v5 — diffs in `Activity::attribute_changes` (`['attributes' => [...], 'old' => [...]]`), logged fields: status, assigned_to, category_id, is_urgent.
 
 ## Risks
+
+### Phase 3
+
+- **Spec payload-shape divergence (resolved)**: spec pseudocode assumed body/headers inline in the webhook payload; reality is a two-step fetch. `InboundEmail` DTO becomes the single parse point over (webhook payload + retrieved email JSON); fixtures bundle both parts per scenario.
+- New listener fires in all existing AddNote tests — if any existing test asserts exact mail counts via the array transport it could break (none found, but watch ShowRequestTest).
+- `mail:replay` must not hit the network: command `Http::fake()`s the Resend content/attachment endpoints from the fixture before running the job.
+- Note XOR authorship invariant: "attachment could not be imported" private note needs an author — no system user exists; customer-authored private note chosen (logged in implementation notes).
+- Package compatibility with Laravel 13 unverified until `composer require` runs (webhook-client, medialibrary).
 
 ### Phase 5
 

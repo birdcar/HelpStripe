@@ -22,6 +22,15 @@ class AddNote
 {
     /**
      * Append a note to the request's timeline.
+     *
+     * `$messageId` is the email Message-ID this note arrived under (inbound
+     * customer replies) — stored so future replies referencing it can be
+     * matched back to this request. `$attachments` are files already
+     * downloaded to local temp paths (the email pipeline fetches them from
+     * Resend before calling in); they're moved into the note's media
+     * collection here so every channel attaches files the same way.
+     *
+     * @param  array<int, array{path: string, name: string}>  $attachments
      */
     public function handle(
         Request $request,
@@ -29,6 +38,8 @@ class AddNote
         string $body,
         bool $isPrivate = false,
         RequestSource $source = RequestSource::Agent,
+        ?string $messageId = null,
+        array $attachments = [],
     ): Note {
         $note = $request->notes()->create([
             'user_id' => $author instanceof User ? $author->id : null,
@@ -36,7 +47,17 @@ class AddNote
             'body' => $body,
             'is_private' => $isPrivate,
             'source' => $source,
+            'message_id' => $messageId,
         ]);
+
+        foreach ($attachments as $attachment) {
+            // addMedia() MOVES the file into the media disk — exactly right
+            // for temp downloads. usingFileName() keeps the sender's
+            // original name instead of the temp path's random one.
+            $note->addMedia($attachment['path'])
+                ->usingFileName($attachment['name'])
+                ->toMediaCollection('attachments');
+        }
 
         if ($author instanceof User && ! $isPrivate) {
             // whereNull() makes the stamp concurrency-safe: two agents
