@@ -54,7 +54,9 @@ Then serve everything at once:
 composer run dev
 ```
 
-That runs six processes concurrently under named labels: `server` (`php artisan serve`), `queue` (`queue:listen`), `logs` (`pail`), `reverb` (`reverb:start`, websockets), `schedule` (`schedule:work`, automation), and `vite` (`bun run dev`). The automation and collision-detection features need the queue, scheduler, and Reverb running, which is why they're all in here.
+That runs five processes concurrently under named labels: `server` (`php artisan serve`), `queue` (`queue:listen`), `logs` (`pail`), `schedule` (`schedule:work`, automation), and `vite` (`bun run dev`). The automation feature needs the queue and scheduler running, which is why they're in here.
+
+The websocket server (Reverb) is **not** in this stack. [Laravel Herd](https://herd.laravel.com) runs a managed Reverb on port 8080 automatically, so starting a second one here would collide. If you're not on Herd, run `php artisan reverb:start` in its own terminal — see ["Optional: live email and websockets"](#optional-live-email-and-websockets).
 
 ## Commands worth knowing
 
@@ -94,7 +96,7 @@ Most of the app runs, tests, and demos with no external services. The inbound em
 
 **Live email (Resend).** For a real round-trip — an actual inbound email creates a Request, and an agent reply threads back to the customer — you need a one-time external setup: a verified domain, inbound MX records, and a webhook secret. The checklist is in [docs/tour/03-shared-inbox.md](docs/tour/03-shared-inbox.md).
 
-**Live collision detection (Reverb).** To see "who's viewing this request" update live across two browsers, run `reverb:start` (it's already in `composer run dev`) and set the `REVERB_*` / `VITE_REVERB_*` env vars — placeholders are in `.env.example`. The two-browser walkthrough is in [docs/tour/07-collision-detection.md](docs/tour/07-collision-detection.md).
+**Live collision detection (Reverb).** To see "who's viewing this request" update live across two browsers, you need the Reverb websocket server running and the `REVERB_*` / `VITE_REVERB_*` env vars set (placeholders are in `.env.example`). On Laravel Herd, enable Reverb and it runs automatically on port 8080 — point the client vars at it (`REVERB_HOST=reverb.herd.test`, `REVERB_PORT=443`, `REVERB_SCHEME=https`). Off Herd, run `php artisan reverb:start` in its own terminal and use the localhost defaults. Either way, do **not** add `reverb:start` back into `composer run dev` on Herd — two servers can't share port 8080. The two-browser walkthrough is in [docs/tour/07-collision-detection.md](docs/tour/07-collision-detection.md).
 
 ## A teaching note about the code
 

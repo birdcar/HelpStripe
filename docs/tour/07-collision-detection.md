@@ -51,10 +51,12 @@ per-message billing. The installer:
 - wired `channels: routes/channels.php` into `bootstrap/app.php`
 - scaffolded `resources/js/echo.js` and `import './echo'` in `app.js`
 
-You start it with `php artisan reverb:start` — and that's now part of the
-`composer run dev` stack (alongside `serve`, `queue:listen`, `pail`, and
-`vite`), so a normal local session has the websocket server running without
-a second thought.
+You start it with `php artisan reverb:start`. On [Laravel Herd](https://herd.laravel.com)
+— this repo's target environment — Herd runs a managed Reverb on port 8080 for
+you, so you do **not** start your own (and `composer run dev` deliberately does
+*not* include `reverb:start`: a second server on 8080 would fail with
+`Address already in use`). Off Herd, run `php artisan reverb:start` in its own
+terminal alongside `composer run dev`.
 
 The `REVERB_APP_ID` / `_KEY` / `_SECRET` identify *this app* to Reverb. The
 matching `VITE_REVERB_*` keys are mirrored into the browser bundle (Vite
@@ -201,9 +203,9 @@ to everyone — exactly right when no connection "owns" the action.
 You need Reverb running and a built front end:
 
 ```bash
-composer run dev          # serve + queue + reverb + vite, all at once
-# a la carte, you'd run each in its own pane: php artisan serve,
-# php artisan queue:listen, php artisan reverb:start, and bun run dev
+composer run dev          # serve + queue + schedule + vite (NOT reverb)
+# On Herd, Reverb already runs on :8080 — nothing more to do.
+# Off Herd, also run in its own pane:  php artisan reverb:start
 ```
 
 Log in as two different seeded staff (e.g. a normal window + an incognito
