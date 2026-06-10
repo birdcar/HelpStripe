@@ -1,0 +1,215 @@
+{
+  "projectName": "HelpStripe",
+  "slug": "helpstripe",
+  "date": "2026-06-09",
+  "status": "Approved",
+  "supersedes": null,
+  "confidence": {
+    "score": 95,
+    "dimensions": [
+      {
+        "key": "scope",
+        "score": 96,
+        "label": "Scope",
+        "reason": "Six pillars with explicit per-pillar depths and a confirmed cut list; stretch tier explicitly declined."
+      },
+      {
+        "key": "risk",
+        "score": 88,
+        "label": "Risk",
+        "reason": "Resend inbound and Reverb are external moving parts, but both have local fallbacks (mail:replay, Herd) and the demo bar is forgiving."
+      },
+      {
+        "key": "effort",
+        "score": 90,
+        "label": "Effort",
+        "reason": "Eight phases of modest, well-understood Laravel work; the total surface is large but each phase is independently verifiable via the repo harness."
+      },
+      {
+        "key": "clarity",
+        "score": 97,
+        "label": "Clarity",
+        "reason": "Vocabulary, pedagogy (annotated code + tour docs), auth models, and the email architecture were all locked during the interview."
+      },
+      {
+        "key": "tests",
+        "score": 95,
+        "label": "Tests",
+        "reason": "Done means Pest green via ./init.sh plus a seeded demo script per pillar — pass/fail verifiable."
+      }
+    ]
+  },
+  "problem": [
+    "A new support engineer joining HelpSpot must learn how a Laravel application works — not abstractly, but in the exact shape of the product they will support every day. Generic Laravel tutorials teach todo lists; this engineer needs requests, mailboxes, triggers, portals, and the vocabulary HelpSpot customers use on real tickets.",
+    "HelpStripe closes that gap: a teaching repository that reimplements the six pillars from HelpSpot's public tour — Shared Inbox, Ticket Management, Automation Rules, Reporting, Knowledge Base, Self-Service Portal — in simple, idiomatic Laravel 13 on this repo's existing Livewire 4 + Flux + Fortify starter. Every pillar doubles as a Laravel lesson (Eloquent relations, the mail pipeline, events and the scheduler, aggregates, broadcasting, public routes), delivered through annotated source code and a per-pillar tour doc.",
+    "Features must genuinely work and be demoable end-to-end on Laravel Herd — real email both directions via Resend, real websockets via Reverb — but are explicitly not production-ready. The bar is: follow the demo script and it works."
+  ],
+  "goals": [
+    "Implement all six HelpSpot tour pillars in working, demoable form using HelpSpot's own vocabulary (Request, Filters, Knowledge Books, Responses, Mail Rules / Triggers / Automation Rules).",
+    "Real email round-trip via Resend: an inbound webhook creates Requests, agent replies thread correctly into the customer's inbox, and mail:replay reproduces the inbound flow offline.",
+    "Each pillar teaches distinct Laravel concepts through annotated source plus a docs/tour/ walkthrough a Laravel newcomer can follow file-by-file.",
+    "Use Spatie packages as the idiomatic backbone: laravel-permission (permission groups), laravel-activitylog (request history), laravel-webhook-client (Resend inbound), laravel-medialibrary (attachments), laravel-tags, laravel-sluggable.",
+    "Every phase keeps the repo harness green: ./init.sh (Pint + Pest) passes and feature_list.json tracks phase status with recorded evidence."
+  ],
+  "successCriteria": [
+    "./init.sh passes (Pint clean, Pest green) at the end of every phase.",
+    "php artisan migrate:fresh --seed produces a demo helpdesk: staff in permission groups, categories, mailboxes, requests in varied states, and Knowledge Base content.",
+    "Each pillar's docs/tour/ doc can be followed start-to-finish on Laravel Herd without improvisation.",
+    "A real email sent to the wired Resend domain creates a Request in the queue; the agent's reply lands threaded in the customer's inbox.",
+    "A customer can submit a request on the public portal, receive a confirmation email with an access key, and check status using email + access key.",
+    "Two browser sessions viewing the same request see each other via Reverb presence channels (collision detection).",
+    "Automation demo: a Mail Rule routes an inbound email to a category, a Trigger fires on request creation, and a scheduled Automation Rule escalates an aged request.",
+    "The reporting dashboard renders three reports from seeded data with Flux charts, including SLA first-response breach flagging.",
+    "POST /api/v1/requests with an API token creates a request — the third intake channel from the tour's 'every email, form, and API request' claim."
+  ],
+  "scope": {
+    "mvp": [
+      {
+        "item": "Domain foundation: Request, Customer, Category, Mailbox models, status enum, spatie/laravel-permission groups (Administrator, Help Desk Staff), factories and rich seeders",
+        "reason": "Every pillar builds on these models and the seeded demo data; one seeded team represents the HelpSpot installation."
+      },
+      {
+        "item": "Ticket Management: request queue + detail Livewire UI, single assignment, public reply vs private note, full history via activitylog, saved Filters",
+        "reason": "The heart of the product the engineer will support — and the tour's 'single assignment, full history' claims."
+      },
+      {
+        "item": "Shared Inbox / Resend email pipeline: outbound Mailables with threading headers, inbound webhooks via laravel-webhook-client, attachments via medialibrary, mail:replay offline fallback",
+        "reason": "HelpSpot is fundamentally an email product; this is the centerpiece integration and the richest Laravel lesson."
+      },
+      {
+        "item": "Self-Service Portal: public submit form, confirmation email, status lookup via email + access key (no customer accounts)",
+        "reason": "Completes the customer-side loop exactly the way real HelpSpot does it; teaches public vs authenticated route groups."
+      },
+      {
+        "item": "Teaching layer: annotated source code plus one docs/tour/ doc per pillar with a step-by-step demo script",
+        "reason": "The entire point of the repository — code without the tour fails the stated goal."
+      }
+    ],
+    "full": [
+      {
+        "item": "Automation: Mail Rules (inbound pipeline), Triggers (request events), scheduled Automation Rules, with a DB-backed condition/action rule builder UI",
+        "reason": "All three HelpSpot automation layers; teaches events, listeners, queued jobs, and the scheduler."
+      },
+      {
+        "item": "Knowledge Base: Books → Chapters → Pages with drafts, slugs, portal browsing, and LIKE-based search",
+        "reason": "Faithful to HelpSpot's hierarchy; teaches nested relationships and route model binding."
+      },
+      {
+        "item": "Reporting: dashboard with three core reports rendered as Flux charts, plus per-category SLA first-response targets with breach flagging",
+        "reason": "Honors the tour's 'response times, agent performance, SLA tracking'; teaches Eloquent aggregates and date grouping."
+      },
+      {
+        "item": "Collision detection via Laravel Reverb presence channels and Echo on the request detail page",
+        "reason": "A distinctive HelpSpot behavior; presence channels are the exact primitive for it. Runs on Herd locally."
+      },
+      {
+        "item": "API intake channel: POST /api/v1/requests with token auth and an API resource response",
+        "reason": "Completes the tour's three intake channels and is the repo's only API-building lesson."
+      }
+    ],
+    "stretch": [],
+    "outOfScope": [
+      {
+        "item": "Real IMAP/SMTP mailbox polling",
+        "reason": "Resend inbound webhooks replace it with less infrastructure and a better webhook lesson."
+      },
+      {
+        "item": "Multi-brand and multi-team features",
+        "reason": "One seeded team represents the single HelpSpot installation; team machinery stays but is never built against."
+      },
+      {
+        "item": "Custom fields, forums, spam filtering, time tracking, request merging, satisfaction surveys",
+        "reason": "Confirmed cut list — parked in Future Considerations; the harness makes adding them later cheap."
+      },
+      {
+        "item": "Business-hours SLA calendars",
+        "reason": "SLA stays simple wall-clock first-response targets; calendars add complexity without a new Laravel lesson."
+      },
+      {
+        "item": "Third-party integrations and Scout full-text search",
+        "reason": "LIKE search is enough for the demo; Scout is a future lesson."
+      },
+      {
+        "item": "Production hardening",
+        "reason": "Explicit non-goal: no deliverability tuning, scaling, or security review beyond framework defaults."
+      }
+    ],
+    "future": [
+      "Knowledge Base deflection: suggest articles while a customer types a portal request",
+      "Request merging (transactions + relation reparenting lesson)",
+      "Time tracking with reporting rollups",
+      "Scout-backed full-text search",
+      "Custom fields",
+      "Satisfaction surveys"
+    ]
+  },
+  "execution": {
+    "strategy": "Hybrid",
+    "agentTeamPrompt": "Execute the HelpStripe build plan from docs/ideation/helpstripe/contract.md with an agent team.\n\nPhase order constraints:\n- Phase 1 (Foundation & Domain Models) completes first — run solo.\n- Phase 2 (Ticket Management) runs next, solo (its actions/events are prerequisites for most branches).\n- After Phase 2: run in parallel — Phase 3 (Shared Inbox), Phase 5 (Knowledge Base), Phase 7 (Collision Detection), Phase 8 (Reporting).\n- Phase 4 (Portal) and Phase 6 (Automation) start only after Phase 3 completes.\n\nTeammate assignments (one phase per teammate):\n- Teammate A: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-3.md, then spec-phase-4.md\n- Teammate B: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-5.md, then spec-phase-6.md (after Phase 3)\n- Teammate C: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-7.md\n- Teammate D: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-8.md\n\nCoordinate on shared files (routes/web.php, resources/views/layouts/app/sidebar.blade.php, database/seeders/DemoSeeder.php, composer.json, .env.example, app/Models/Request.php, resources/views/pages/requests/⚡show.blade.php) — only one teammate modifies a shared file at a time; announce before touching them.\n\nEvery teammate finishes with ./init.sh green and updates feature_list.json + progress.md per the repo harness rules before reporting done.",
+    "phases": [
+      {
+        "title": "Foundation & Domain Models",
+        "risk": "low",
+        "blocking": true,
+        "specPath": "docs/ideation/helpstripe/spec-phase-1.md",
+        "notes": "Spatie package installs, Request/Customer/Category/Mailbox models + status enum, permission groups, factories, rich seeders, navigation shell."
+      },
+      {
+        "title": "Ticket Management",
+        "risk": "low",
+        "blocking": true,
+        "prereqs": ["Foundation & Domain Models"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-2.md",
+        "notes": "Request queue + detail Livewire UI, assignment, public replies vs private notes, activitylog history, saved Filters."
+      },
+      {
+        "title": "Shared Inbox & Email Pipeline",
+        "risk": "medium",
+        "blocking": true,
+        "prereqs": ["Ticket Management"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-3.md",
+        "notes": "Resend outbound with threading headers, inbound webhook via webhook-client, attachments, mail:replay, API intake channel."
+      },
+      {
+        "title": "Self-Service Portal",
+        "risk": "low",
+        "blocking": false,
+        "prereqs": ["Shared Inbox & Email Pipeline"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-4.md",
+        "notes": "Public portal: submit form, confirmation email with access key, email + access key status lookup."
+      },
+      {
+        "title": "Knowledge Base",
+        "risk": "low",
+        "blocking": false,
+        "prereqs": ["Foundation & Domain Models"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-5.md",
+        "notes": "Books → Chapters → Pages with drafts, slugs, portal browsing, LIKE search. Parallelizable with phases 2-4."
+      },
+      {
+        "title": "Automation Rules",
+        "risk": "medium",
+        "blocking": false,
+        "prereqs": ["Shared Inbox & Email Pipeline"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-6.md",
+        "notes": "Mail Rules in the inbound pipeline, event Triggers, scheduled Automation Rules, DB-backed rule builder UI."
+      },
+      {
+        "title": "Collision Detection",
+        "risk": "medium",
+        "blocking": false,
+        "prereqs": ["Ticket Management"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-7.md",
+        "notes": "Laravel Reverb + Echo presence channels on the request detail page. Parallelizable with phases 3-6."
+      },
+      {
+        "title": "Reporting",
+        "risk": "low",
+        "blocking": false,
+        "prereqs": ["Ticket Management"],
+        "specPath": "docs/ideation/helpstripe/spec-phase-8.md",
+        "notes": "Dashboard with three core reports, Flux charts, SLA breach flagging. Parallelizable with phases 3-7."
+      }
+    ]
+  }
+}

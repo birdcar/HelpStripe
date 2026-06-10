@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HelpStripe — Mission Brief</title>
+    <style>
+/* Mission Brief — Contract Design Tokens & Components
+   Radix-inspired color scales, navy-tinted shadows, system fonts.
+   Inlined into generated HTML by contract-gen.ts at runtime. */
+
+:root {
+  --purple-2: #f8f8ff; --purple-3: #f0f1fe; --purple-4: #e6e7ff;
+  --purple-7: #b8baf8; --purple-9: #6565ec; --purple-11: #5753c6;
+  --purple-12: #272962;
+  --purple-a3: rgba(0, 19, 231, 0.059); --purple-a4: rgba(1, 13, 255, 0.098);
+  --purple-a5: rgba(0, 9, 255, 0.141);
+  --gray-1: #fcfcfd; --gray-2: #f9f9fb; --gray-3: #f0f0f3;
+  --gray-4: #e7e8ec; --gray-7: #cdced6; --gray-8: #b9bbc6;
+  --gray-9: #8b8d98; --gray-10: #80838d; --gray-11: #60646c;
+  --gray-12: #2b333b;
+  --gray-a4: rgba(0, 12, 58, 0.094); --gray-a5: rgba(0, 6, 58, 0.122);
+  --gray-a6: rgba(0, 8, 55, 0.153); --gray-a7: rgba(0, 6, 53, 0.197);
+  --red-2: #fff7f8; --red-9: #e54666; --red-11: #ca244d;
+  --red-a5: rgba(255, 0, 32, 0.193);
+  --green-9: #29a383; --green-11: #208368;
+  --yellow-11: #a06e00;
+  --color-bg: #ffffff;
+  --shadow-color: 3, 2, 13;
+  --shadow-2: 0 2px 3px -1px rgba(var(--shadow-color), 0.05), 0 1px 2px 0 rgba(var(--shadow-color), 0.04);
+  --shadow-3: 0 3px 6px -1px rgba(var(--shadow-color), 0.06), 0 1px 2px 0 rgba(var(--shadow-color), 0.04);
+  --border-inset: inset 0 0 0 1px var(--gray-a5);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+  --radius-3: 6px; --radius-4: 8px; --radius-5: 12px; --radius-full: 9999px;
+}
+
+/* ── Dark Mode ───────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0c111c;
+    --gray-1: #0c111c; --gray-2: #111827; --gray-3: #192132;
+    --gray-4: #1f2937; --gray-7: #4b5563; --gray-8: #6b7280;
+    --gray-9: #9ca3af; --gray-10: #b6bcc6; --gray-11: #d1d5db;
+    --gray-12: #eef0f2;
+    --gray-a4: rgba(255,255,255,0.098); --gray-a5: rgba(255,255,255,0.133);
+    --gray-a6: rgba(255,255,255,0.173); --gray-a7: rgba(255,255,255,0.224);
+    --purple-2: #1a1a3a; --purple-3: #222252;
+    --purple-4: #2a2a5a; --purple-7: #7878d0;
+    --purple-11: #b0b1ff; --purple-12: #dcdefd;
+    --purple-a3: rgba(101,101,236,0.15); --purple-a4: rgba(101,101,236,0.2);
+    --purple-a5: rgba(101,101,236,0.3);
+    --red-2: #2a1418; --red-a5: rgba(229,70,102,0.3);
+    --shadow-color: 0, 0, 0;
+  }
+}
+
+/* ── Reset ───────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans); font-size: 16px; line-height: 1.6;
+  color: var(--gray-12); background: var(--color-bg);
+  max-width: 1040px; margin: 0 auto; padding: 40px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Hero ─────────────────────────────────────── */
+
+.hero {
+  background: var(--gray-12); color: var(--gray-1);
+  padding: 40px; border-radius: var(--radius-5);
+  position: relative; overflow: hidden;
+}
+.hero-grid {
+  position: absolute; inset: 0;
+  background-image: linear-gradient(var(--purple-a3) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--purple-a3) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.6), transparent 80%);
+  pointer-events: none;
+}
+.hero-content { position: relative; }
+.hero-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; }
+.hero-slug { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.slug-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple-9); }
+.hero-slug span:last-child { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gray-8); font-weight: 500; }
+.hero-title { margin: 0; font-size: 56px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; color: var(--gray-1); }
+.hero-meta { text-align: right; font-size: 12px; color: var(--gray-8); font-family: var(--font-mono); line-height: 1.7; }
+.hero-status { color: var(--purple-9); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.hero-supersedes { color: var(--gray-9); }
+.hero-score-row { display: grid; grid-template-columns: 320px 1fr; gap: 36px; align-items: center; }
+.kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gray-8); margin-bottom: 6px; font-weight: 600; }
+.kicker-accent { color: var(--purple-11); }
+.kicker-danger { color: var(--red-11); }
+.kicker-muted { color: var(--gray-10); }
+.score-display { display: flex; align-items: baseline; gap: 8px; }
+.score-num { font-size: 168px; font-weight: 700; letter-spacing: -0.06em; line-height: 0.85; font-variant-numeric: tabular-nums; }
+.score-denom { font-size: 32px; color: var(--gray-9); font-weight: 500; }
+.score-bar-track { margin-top: 8px; height: 6px; background: rgba(255,255,255,0.12); border-radius: var(--radius-full); overflow: hidden; max-width: 280px; }
+.score-bar-fill { height: 100%; border-radius: var(--radius-full); transition: width 1100ms cubic-bezier(.2,.7,.3,1); }
+.dim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 32px; }
+.dim-row { display: flex; align-items: baseline; gap: 10px; }
+.dim-score { font-family: var(--font-mono); font-size: 18px; font-weight: 600; min-width: 32px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.dim-detail { flex: 1; min-width: 0; }
+.dim-label { font-size: 13px; font-weight: 600; color: var(--gray-1); text-transform: lowercase; margin-bottom: 2px; }
+.dim-reason { font-size: 11.5px; color: var(--gray-9); line-height: 1.45; }
+
+/* ── First Move ───────────────────────────────── */
+
+.first-move {
+  margin-top: 24px; padding: 26px 32px; border-radius: var(--radius-5);
+  background: var(--purple-2); box-shadow: inset 0 0 0 1px var(--purple-a5), var(--shadow-2);
+}
+.first-move-grid { display: grid; grid-template-columns: 200px 1fr; gap: 32px; align-items: center; }
+.first-move-headline { font-size: 32px; font-weight: 700; color: var(--gray-12); letter-spacing: -0.025em; line-height: 1; margin-bottom: 8px; }
+.first-move-phase { font-size: 13px; color: var(--gray-11); line-height: 1.5; }
+.first-move-phase strong { color: var(--gray-12); }
+
+/* ── Copy Command ─────────────────────────────── */
+
+.copy-cmd {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--purple-12); color: var(--purple-2);
+  border-radius: var(--radius-3); font-family: var(--font-mono); font-size: 13px; line-height: 1.4;
+}
+.copy-cmd-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; }
+.copy-btn {
+  flex: 0 0 auto; background: var(--gray-a4); color: var(--gray-11);
+  border: 0; padding: 4px 8px; border-radius: 4px;
+  font-size: 11px; font-family: var(--font-sans); cursor: pointer;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.copy-btn:hover { background: var(--gray-a6); }
+.copy-btn-accent { background: var(--purple-9); color: white; font-weight: 600; padding: 5px 10px; }
+.copy-btn-accent:hover { background: var(--purple-11); }
+
+/* ── Sections ─────────────────────────────────── */
+
+.section-block { margin-top: 56px; }
+.section-hdr { margin-bottom: 24px; }
+.section-title { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.022em; line-height: 1.05; color: var(--gray-12); }
+.section-title-row { display: flex; align-items: baseline; gap: 16px; }
+.section-count { font-family: var(--font-mono); font-size: 11px; color: var(--gray-10); letter-spacing: 0.06em; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 56px; }
+.stack-14 { display: flex; flex-direction: column; gap: 14px; }
+.body-text { margin: 0; font-size: 15.5px; line-height: 1.65; color: var(--gray-12); }
+.line-num { font-family: var(--font-mono); font-size: 10.5px; color: var(--gray-10); margin-right: 8px; letter-spacing: 0.08em; vertical-align: top; }
+
+/* ── Goals ─────────────────────────────────────── */
+
+.goal-card {
+  padding: 12px 14px; background: var(--purple-2); border-radius: var(--radius-3);
+  box-shadow: inset 0 0 0 1px var(--purple-a4);
+  display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: baseline;
+}
+.goal-num { font-size: 22px; font-weight: 700; color: var(--purple-11); letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.goal-text { font-size: 14.5px; line-height: 1.55; color: var(--gray-12); }
+
+/* ── Success Criteria ──────────────────────────── */
+
+.criteria-grid { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
+.criteria-item {
+  display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: baseline;
+  font-size: 14px; line-height: 1.55; padding: 10px 14px 10px 0;
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+/* ── Scope ─────────────────────────────────────── */
+
+.scope-layout { display: grid; grid-template-columns: 300px 1fr; gap: 36px; }
+.nested-tiers { position: relative; width: 300px; height: 300px; padding-top: 6px; }
+.tier-box {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  border-radius: var(--radius-4); display: flex; flex-direction: column; justify-content: flex-end; padding: 10px;
+}
+.tier-stretch { width: 300px; height: 300px; border: 1.5px solid var(--gray-7); }
+.tier-full { width: 220px; height: 220px; border: 1.5px solid var(--purple-7); }
+.tier-mvp { width: 140px; height: 140px; background: var(--purple-9); border: 1.5px solid var(--purple-9); }
+.tier-box-label {
+  position: absolute; top: 8px; left: 12px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; font-weight: 600;
+}
+.tier-stretch .tier-box-label { color: var(--gray-7); }
+.tier-full .tier-box-label { color: var(--purple-7); }
+.tier-mvp .tier-box-label { color: white; }
+.tier-box-count { opacity: 0.7; }
+.tier-lists { display: flex; flex-direction: column; gap: 22px; }
+.tier-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tier-dot { width: 10px; height: 10px; border-radius: 2px; }
+.tier-solid { background: var(--purple-9); }
+.tier-soft { background: var(--purple-7); }
+.tier-ghost { background: var(--gray-7); }
+.tier-title { font-size: 13px; font-weight: 600; color: var(--gray-12); letter-spacing: -0.005em; }
+.tier-rule { flex: 1; height: 1px; background: var(--gray-a4); }
+.tier-count { font-family: var(--font-mono); font-size: 10.5px; color: var(--gray-10); }
+.tier-items { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.tier-items li { font-size: 13.5px; line-height: 1.5; color: var(--gray-12); }
+.tier-items strong { font-weight: 500; }
+.tier-reason { color: var(--gray-10); margin-left: 6px; font-size: 12.5px; }
+.scope-extras { margin-top: 28px; }
+.scope-out-panel { padding: 18px; border-radius: var(--radius-4); background: var(--red-2); box-shadow: inset 0 0 0 1px var(--red-a5); }
+.scope-out-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.scope-out-list li { font-size: 13px; line-height: 1.5; }
+.scope-out-item { color: var(--gray-12); font-weight: 500; text-decoration: line-through; text-decoration-color: var(--red-9); }
+.scope-out-reason { color: var(--gray-11); }
+.scope-future-panel { padding: 18px; border-radius: var(--radius-4); background: var(--gray-2); box-shadow: inset 0 0 0 1px var(--gray-a4); }
+.scope-future-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.scope-future-list li { font-size: 13px; line-height: 1.5; color: var(--gray-11); }
+
+/* ── Execution ─────────────────────────────────── */
+
+.phase-track { display: grid; gap: 8px; }
+.phase-card {
+  position: relative; padding: 14px 12px;
+  background: var(--color-bg); border-radius: var(--radius-4);
+  box-shadow: var(--border-inset), var(--shadow-2);
+  border-top: 3px solid var(--green-11);
+  min-height: 200px; display: flex; flex-direction: column; gap: 10px;
+}
+.phase-gate { background: var(--purple-2); }
+.phase-arrow {
+  position: absolute; right: -10px; top: 50%;
+  width: 14px; height: 14px;
+  border-top: 1.5px solid var(--gray-a7); border-right: 1.5px solid var(--gray-a7);
+  transform: translateY(-50%) rotate(45deg); z-index: 2;
+}
+.phase-head { display: flex; align-items: center; gap: 6px; }
+.phase-num { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--gray-10); letter-spacing: 0.08em; }
+.phase-risk { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-left: auto; }
+.phase-title { font-size: 13.5px; font-weight: 700; letter-spacing: -0.005em; color: var(--gray-12); line-height: 1.25; }
+.phase-kind { font-family: var(--font-mono); font-size: 10px; color: var(--gray-10); letter-spacing: 0.06em; text-transform: uppercase; }
+.phase-notes { font-size: 11.5px; color: var(--gray-11); line-height: 1.45; font-style: italic; margin-top: auto; }
+.autopilot-bar {
+  margin-top: 28px; padding: 20px 24px; border-radius: var(--radius-4);
+  background: var(--purple-2); box-shadow: inset 0 0 0 1px var(--purple-a5), var(--shadow-2);
+  display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center;
+}
+.autopilot-desc { font-size: 13px; color: var(--gray-11); line-height: 1.5; margin-top: 4px; }
+.copy-cmd-accent { background: var(--purple-12); }
+.cmd-list-header { margin-top: 20px; margin-bottom: 4px; }
+.cmd-list { margin-top: 10px; display: flex; flex-direction: column; gap: 14px; }
+.cmd-row { display: grid; grid-template-columns: 40px 200px 1fr; gap: 14px; align-items: center; }
+.cmd-num { font-family: var(--font-mono); font-size: 12px; color: var(--gray-10); letter-spacing: 0.06em; font-weight: 600; }
+.cmd-title { font-size: 13.5px; font-weight: 600; color: var(--gray-12); }
+.cmd-row .copy-cmd { background: var(--gray-12); color: var(--gray-1); }
+
+/* ── Agent Team Details ──────────────────────── */
+
+.agent-team-details { margin-top: 24px; border: 1px solid var(--gray-a5); border-radius: var(--radius-4); overflow: hidden; }
+.agent-team-details summary {
+  list-style: none; cursor: pointer; padding: 12px 16px;
+  background: var(--gray-2); font-weight: 500; font-size: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.agent-team-details summary::-webkit-details-marker { display: none; }
+.agent-team-details summary::before { content: '▸'; color: var(--gray-10); transition: transform 0.15s ease; }
+.agent-team-details[open] summary::before { transform: rotate(90deg); }
+.agent-team-body { padding: 16px; border-top: 1px solid var(--gray-a5); }
+.copy-cmd-wide { white-space: pre-wrap; }
+.copy-cmd-wide .copy-cmd-text { white-space: pre-wrap; }
+
+/* ── Responsive ────────────────────────────────── */
+
+@media (max-width: 768px) {
+  body { padding: 16px; }
+  .hero { padding: 24px; }
+  .hero-title { font-size: 36px; }
+  .hero-top { flex-direction: column; gap: 16px; }
+  .hero-meta { text-align: left; }
+  .hero-score-row { grid-template-columns: 1fr; }
+  .score-num { font-size: 96px; }
+  .two-col, .scope-layout, .scope-extras { grid-template-columns: 1fr; }
+  .first-move-grid { grid-template-columns: 1fr; }
+  .criteria-grid { grid-template-columns: 1fr; }
+  .dim-grid { grid-template-columns: 1fr; }
+  .phase-track { grid-template-columns: 1fr !important; }
+  .phase-arrow { display: none; }
+  .cmd-row { grid-template-columns: 40px 1fr; }
+  .cmd-row .copy-cmd { grid-column: 1 / -1; }
+  .nested-tiers { display: none; }
+}
+
+/* ── Print ──────────────────────────────────────── */
+
+@media print {
+  body { font-size: 11pt; max-width: none; color: #000; background: #fff; padding: 20px; }
+  .hero { background: #222; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .copy-btn { display: none !important; }
+  .phase-track { grid-template-columns: repeat(3, 1fr) !important; }
+  .agent-team-details[open] > *:not(summary) { display: block; }
+}
+
+    </style>
+  </head>
+  <body>
+
+    <header class="hero">
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="hero-content">
+        <div class="hero-top">
+          <div>
+            <div class="hero-slug">
+              <span class="slug-dot"></span>
+              <span>Mission brief · helpstripe</span>
+            </div>
+            <h1 class="hero-title">HelpStripe</h1>
+          </div>
+          <div class="hero-meta">
+            <div class="hero-status">Approved</div>
+            <div>2026-06-09</div>
+            <div class="hero-supersedes">supersedes contract-2026-06-09.html</div>
+          </div>
+        </div>
+
+        <div class="hero-score-row">
+          <div class="hero-score-block">
+            <div class="kicker">Plan confidence</div>
+            <div class="score-display">
+              <span class="score-num" style="color: var(--green-9)">95</span>
+              <span class="score-denom">/100</span>
+            </div>
+            <div class="score-bar-track">
+              <div class="score-bar-fill" style="width: 95%; background: var(--green-9)"></div>
+            </div>
+          </div>
+          <div class="hero-dims">
+            <div class="kicker">By dimension</div>
+            <div class="dim-grid">
+              <div class="dim-row">
+                <span class="dim-score" style="color: var(--green-9)">96</span>
+                <div class="dim-detail">
+                  <div class="dim-label">scope</div>
+                  <div class="dim-reason">Six pillars with explicit per-pillar depths and a confirmed cut list; stretch tier explicitly declined.</div>
+                </div>
+              </div>
+              <div class="dim-row">
+                <span class="dim-score" style="color: var(--green-9)">88</span>
+                <div class="dim-detail">
+                  <div class="dim-label">risk</div>
+                  <div class="dim-reason">Resend inbound and Reverb are external moving parts, but both have local fallbacks (mail:replay, Herd) and the demo bar is forgiving.</div>
+                </div>
+              </div>
+              <div class="dim-row">
+                <span class="dim-score" style="color: var(--green-9)">90</span>
+                <div class="dim-detail">
+                  <div class="dim-label">effort</div>
+                  <div class="dim-reason">Eight phases of modest, well-understood Laravel work; the total surface is large but each phase is independently verifiable via the repo harness.</div>
+                </div>
+              </div>
+              <div class="dim-row">
+                <span class="dim-score" style="color: var(--green-9)">97</span>
+                <div class="dim-detail">
+                  <div class="dim-label">clarity</div>
+                  <div class="dim-reason">Vocabulary, pedagogy (annotated code + tour docs), auth models, and the email architecture were all locked during the interview.</div>
+                </div>
+              </div>
+              <div class="dim-row">
+                <span class="dim-score" style="color: var(--green-9)">95</span>
+                <div class="dim-detail">
+                  <div class="dim-label">tests</div>
+                  <div class="dim-reason">Done means Pest green via ./init.sh plus a seeded demo script per pillar — pass/fail verifiable.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="first-move">
+      <div class="first-move-grid">
+        <div>
+          <div class="kicker kicker-accent">First move</div>
+          <div class="first-move-headline">Run this.</div>
+          <div class="first-move-phase">Phase 01 — <strong>Foundation &amp; Domain Models</strong></div>
+        </div>
+        <div class="copy-cmd">
+          <span class="copy-cmd-text" id="cmd-first">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-1.md</span>
+          <button type="button" class="copy-btn copy-btn-accent" data-copy="cmd-first">copy</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section>
+        <div class="section-hdr">
+          <div class="kicker">Context · 01</div>
+          <h2 class="section-title">The problem</h2>
+        </div>
+        <div class="stack-14">
+          <p class="body-text"><span class="line-num">01</span>A new support engineer joining HelpSpot must learn how a Laravel application works — not abstractly, but in the exact shape of the product they will support every day. Generic Laravel tutorials teach todo lists; this engineer needs requests, mailboxes, triggers, portals, and the vocabulary HelpSpot customers use on real tickets.</p>
+          <p class="body-text"><span class="line-num">02</span>HelpStripe closes that gap: a teaching repository that reimplements the six pillars from HelpSpot's public tour — Shared Inbox, Ticket Management, Automation Rules, Reporting, Knowledge Base, Self-Service Portal — in simple, idiomatic Laravel 13 on this repo's existing Livewire 4 + Flux + Fortify starter. Every pillar doubles as a Laravel lesson (Eloquent relations, the mail pipeline, events and the scheduler, aggregates, broadcasting, public routes), delivered through annotated source code and a per-pillar tour doc.</p>
+          <p class="body-text"><span class="line-num">03</span>Features must genuinely work and be demoable end-to-end on Laravel Herd — real email both directions via Resend, real websockets via Reverb — but are explicitly not production-ready. The bar is: follow the demo script and it works.</p>
+        </div>
+      </section>
+      <section>
+        <div class="section-hdr">
+          <div class="kicker">Commit · 02</div>
+          <h2 class="section-title">Goals</h2>
+        </div>
+        <div class="stack-14">
+          <div class="goal-card">
+            <span class="goal-num">1</span>
+            <span class="goal-text">Implement all six HelpSpot tour pillars in working, demoable form using HelpSpot's own vocabulary (Request, Filters, Knowledge Books, Responses, Mail Rules / Triggers / Automation Rules).</span>
+          </div>
+          <div class="goal-card">
+            <span class="goal-num">2</span>
+            <span class="goal-text">Real email round-trip via Resend: an inbound webhook creates Requests, agent replies thread correctly into the customer's inbox, and mail:replay reproduces the inbound flow offline.</span>
+          </div>
+          <div class="goal-card">
+            <span class="goal-num">3</span>
+            <span class="goal-text">Each pillar teaches distinct Laravel concepts through annotated source plus a docs/tour/ walkthrough a Laravel newcomer can follow file-by-file.</span>
+          </div>
+          <div class="goal-card">
+            <span class="goal-num">4</span>
+            <span class="goal-text">Use Spatie packages as the idiomatic backbone: laravel-permission (permission groups), laravel-activitylog (request history), laravel-webhook-client (Resend inbound), laravel-medialibrary (attachments), laravel-tags, laravel-sluggable.</span>
+          </div>
+          <div class="goal-card">
+            <span class="goal-num">5</span>
+            <span class="goal-text">Every phase keeps the repo harness green: ./init.sh (Pint + Pest) passes and feature_list.json tracks phase status with recorded evidence.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="section-block">
+      <div class="section-hdr">
+        <div class="kicker">Signal · 03</div>
+        <div class="section-title-row">
+          <h2 class="section-title">Done when…</h2>
+          <span class="section-count">9 signals</span>
+        </div>
+      </div>
+      <ul class="criteria-grid">
+        <li class="criteria-item">
+          <span class="line-num">01</span>
+          <span>./init.sh passes (Pint clean, Pest green) at the end of every phase.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">02</span>
+          <span>php artisan migrate:fresh --seed produces a demo helpdesk: staff in permission groups, categories, mailboxes, requests in varied states, and Knowledge Base content.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">03</span>
+          <span>Each pillar's docs/tour/ doc can be followed start-to-finish on Laravel Herd without improvisation.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">04</span>
+          <span>A real email sent to the wired Resend domain creates a Request in the queue; the agent's reply lands threaded in the customer's inbox.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">05</span>
+          <span>A customer can submit a request on the public portal, receive a confirmation email with an access key, and check status using email + access key.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">06</span>
+          <span>Two browser sessions viewing the same request see each other via Reverb presence channels (collision detection).</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">07</span>
+          <span>Automation demo: a Mail Rule routes an inbound email to a category, a Trigger fires on request creation, and a scheduled Automation Rule escalates an aged request.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">08</span>
+          <span>The reporting dashboard renders three reports from seeded data with Flux charts, including SLA first-response breach flagging.</span>
+        </li>
+        <li class="criteria-item">
+          <span class="line-num">09</span>
+          <span>POST /api/v1/requests with an API token creates a request — the third intake channel from the tour's 'every email, form, and API request' claim.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section-block">
+      <div class="section-hdr">
+        <div class="kicker">Boundary · 04</div>
+        <div class="section-title-row">
+          <h2 class="section-title">Scope</h2>
+          <span class="section-count">MVP nests inside Full nests inside Stretch</span>
+        </div>
+      </div>
+
+      <div class="scope-layout">
+        <div class="nested-tiers">
+          <div class="tier-box tier-stretch"><span class="tier-box-label">Stretch <span class="tier-box-count">×0</span></span></div>
+          <div class="tier-box tier-full"><span class="tier-box-label">Full <span class="tier-box-count">×5</span></span></div>
+          <div class="tier-box tier-mvp"><span class="tier-box-label">MVP <span class="tier-box-count">×5</span></span></div>
+        </div>
+        <div class="tier-lists">
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-dot tier-solid"></span>
+              <span class="tier-title">MVP — must ship</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×5</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>Domain foundation: Request, Customer, Category, Mailbox models, status enum, spatie/laravel-permission groups (Administrator, Help Desk Staff), factories and rich seeders</strong><span class="tier-reason">— Every pillar builds on these models and the seeded demo data; one seeded team represents the HelpSpot installation.</span></li>
+              <li><strong>Ticket Management: request queue + detail Livewire UI, single assignment, public reply vs private note, full history via activitylog, saved Filters</strong><span class="tier-reason">— The heart of the product the engineer will support — and the tour's 'single assignment, full history' claims.</span></li>
+              <li><strong>Shared Inbox / Resend email pipeline: outbound Mailables with threading headers, inbound webhooks via laravel-webhook-client, attachments via medialibrary, mail:replay offline fallback</strong><span class="tier-reason">— HelpSpot is fundamentally an email product; this is the centerpiece integration and the richest Laravel lesson.</span></li>
+              <li><strong>Self-Service Portal: public submit form, confirmation email, status lookup via email + access key (no customer accounts)</strong><span class="tier-reason">— Completes the customer-side loop exactly the way real HelpSpot does it; teaches public vs authenticated route groups.</span></li>
+              <li><strong>Teaching layer: annotated source code plus one docs/tour/ doc per pillar with a step-by-step demo script</strong><span class="tier-reason">— The entire point of the repository — code without the tour fails the stated goal.</span></li>
+            </ul>
+          </div>
+
+          <div class="tier-group">
+            <div class="tier-header">
+              <span class="tier-dot tier-soft"></span>
+              <span class="tier-title">Full — target outcome</span>
+              <span class="tier-rule"></span>
+              <span class="tier-count">×5</span>
+            </div>
+            <ul class="tier-items">
+              <li><strong>Automation: Mail Rules (inbound pipeline), Triggers (request events), scheduled Automation Rules, with a DB-backed condition/action rule builder UI</strong><span class="tier-reason">— All three HelpSpot automation layers; teaches events, listeners, queued jobs, and the scheduler.</span></li>
+              <li><strong>Knowledge Base: Books → Chapters → Pages with drafts, slugs, portal browsing, and LIKE-based search</strong><span class="tier-reason">— Faithful to HelpSpot's hierarchy; teaches nested relationships and route model binding.</span></li>
+              <li><strong>Reporting: dashboard with three core reports rendered as Flux charts, plus per-category SLA first-response targets with breach flagging</strong><span class="tier-reason">— Honors the tour's 'response times, agent performance, SLA tracking'; teaches Eloquent aggregates and date grouping.</span></li>
+              <li><strong>Collision detection via Laravel Reverb presence channels and Echo on the request detail page</strong><span class="tier-reason">— A distinctive HelpSpot behavior; presence channels are the exact primitive for it. Runs on Herd locally.</span></li>
+              <li><strong>API intake channel: POST /api/v1/requests with token auth and an API resource response</strong><span class="tier-reason">— Completes the tour's three intake channels and is the repo's only API-building lesson.</span></li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="two-col scope-extras">
+        <div class="scope-out-panel">
+          <div class="kicker kicker-danger">Out of scope — said no on purpose</div>
+          <ul class="scope-out-list">
+            <li><span class="scope-out-item">Real IMAP/SMTP mailbox polling</span> <span class="scope-out-reason">— Resend inbound webhooks replace it with less infrastructure and a better webhook lesson.</span></li>
+            <li><span class="scope-out-item">Multi-brand and multi-team features</span> <span class="scope-out-reason">— One seeded team represents the single HelpSpot installation; team machinery stays but is never built against.</span></li>
+            <li><span class="scope-out-item">Custom fields, forums, spam filtering, time tracking, request merging, satisfaction surveys</span> <span class="scope-out-reason">— Confirmed cut list — parked in Future Considerations; the harness makes adding them later cheap.</span></li>
+            <li><span class="scope-out-item">Business-hours SLA calendars</span> <span class="scope-out-reason">— SLA stays simple wall-clock first-response targets; calendars add complexity without a new Laravel lesson.</span></li>
+            <li><span class="scope-out-item">Third-party integrations and Scout full-text search</span> <span class="scope-out-reason">— LIKE search is enough for the demo; Scout is a future lesson.</span></li>
+            <li><span class="scope-out-item">Production hardening</span> <span class="scope-out-reason">— Explicit non-goal: no deliverability tuning, scaling, or security review beyond framework defaults.</span></li>
+          </ul>
+        </div>
+        <div class="scope-future-panel">
+          <div class="kicker kicker-muted">Future — someday, maybe</div>
+          <ul class="scope-future-list">
+            <li>Knowledge Base deflection: suggest articles while a customer types a portal request</li>
+            <li>Request merging (transactions + relation reparenting lesson)</li>
+            <li>Time tracking with reporting rollups</li>
+            <li>Scout-backed full-text search</li>
+            <li>Custom fields</li>
+            <li>Satisfaction surveys</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-hdr">
+        <div class="kicker">Run · 05</div>
+        <div class="section-title-row">
+          <h2 class="section-title">Execution</h2>
+          <span class="section-count">Hybrid</span>
+        </div>
+      </div>
+
+      <div class="phase-track" style="grid-template-columns: repeat(8, 1fr)">
+        <div class="phase-card" style="border-top-color: var(--green-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">01</span>
+            <span class="phase-risk" style="color: var(--green-11)">low</span>
+          </div>
+          <div class="phase-title">Foundation &amp; Domain Models</div>
+          <div class="phase-kind">phase · blocking</div>
+          <div class="phase-notes">Spatie package installs, Request/Customer/Category/Mailbox models + status enum, permission groups, factories, rich seeders, navigation shell.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--green-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">02</span>
+            <span class="phase-risk" style="color: var(--green-11)">low</span>
+          </div>
+          <div class="phase-title">Ticket Management</div>
+          <div class="phase-kind">phase · blocking</div>
+          <div class="phase-notes">Request queue + detail Livewire UI, assignment, public replies vs private notes, activitylog history, saved Filters.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--yellow-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">03</span>
+            <span class="phase-risk" style="color: var(--yellow-11)">med</span>
+          </div>
+          <div class="phase-title">Shared Inbox &amp; Email Pipeline</div>
+          <div class="phase-kind">phase · blocking</div>
+          <div class="phase-notes">Resend outbound with threading headers, inbound webhook via webhook-client, attachments, mail:replay, API intake channel.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--green-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">04</span>
+            <span class="phase-risk" style="color: var(--green-11)">low</span>
+          </div>
+          <div class="phase-title">Self-Service Portal</div>
+          <div class="phase-kind">phase</div>
+          <div class="phase-notes">Public portal: submit form, confirmation email with access key, email + access key status lookup.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--green-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">05</span>
+            <span class="phase-risk" style="color: var(--green-11)">low</span>
+          </div>
+          <div class="phase-title">Knowledge Base</div>
+          <div class="phase-kind">phase</div>
+          <div class="phase-notes">Books → Chapters → Pages with drafts, slugs, portal browsing, LIKE search. Parallelizable with phases 2-4.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--yellow-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">06</span>
+            <span class="phase-risk" style="color: var(--yellow-11)">med</span>
+          </div>
+          <div class="phase-title">Automation Rules</div>
+          <div class="phase-kind">phase</div>
+          <div class="phase-notes">Mail Rules in the inbound pipeline, event Triggers, scheduled Automation Rules, DB-backed rule builder UI.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--yellow-11)">
+          <div class="phase-arrow" aria-hidden="true"></div>
+          <div class="phase-head">
+            <span class="phase-num">07</span>
+            <span class="phase-risk" style="color: var(--yellow-11)">med</span>
+          </div>
+          <div class="phase-title">Collision Detection</div>
+          <div class="phase-kind">phase</div>
+          <div class="phase-notes">Laravel Reverb + Echo presence channels on the request detail page. Parallelizable with phases 3-6.</div>
+        </div>
+        <div class="phase-card" style="border-top-color: var(--green-11)">
+          
+          <div class="phase-head">
+            <span class="phase-num">08</span>
+            <span class="phase-risk" style="color: var(--green-11)">low</span>
+          </div>
+          <div class="phase-title">Reporting</div>
+          <div class="phase-kind">phase</div>
+          <div class="phase-notes">Dashboard with three core reports, Flux charts, SLA breach flagging. Parallelizable with phases 3-7.</div>
+        </div>
+      </div>
+
+      <div class="autopilot-bar">
+        <div class="autopilot-left">
+          <div class="kicker kicker-accent">Run all phases</div>
+          <div class="autopilot-desc">Autopilot reads the contract, walks the dependency graph, and dispatches phases automatically.</div>
+        </div>
+        <div class="copy-cmd copy-cmd-accent">
+          <span class="copy-cmd-text" id="cmd-autopilot">/ideation:autopilot</span>
+          <button type="button" class="copy-btn copy-btn-accent" data-copy="cmd-autopilot">copy</button>
+        </div>
+      </div>
+
+      <div class="cmd-list-header kicker">Or run individual phases</div>
+      <div class="cmd-list">
+        <div class="cmd-row">
+          <span class="cmd-num">01</span>
+          <span class="cmd-title">Foundation &amp; Domain Models</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-1">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-1.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-1">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">02</span>
+          <span class="cmd-title">Ticket Management</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-2">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-2.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-2">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">03</span>
+          <span class="cmd-title">Shared Inbox &amp; Email Pipeline</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-3">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-3.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-3">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">04</span>
+          <span class="cmd-title">Self-Service Portal</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-4">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-4.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-4">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">05</span>
+          <span class="cmd-title">Knowledge Base</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-5">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-5.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-5">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">06</span>
+          <span class="cmd-title">Automation Rules</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-6">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-6.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-6">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">07</span>
+          <span class="cmd-title">Collision Detection</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-7">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-7.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-7">copy</button>
+          </div>
+        </div>
+        <div class="cmd-row">
+          <span class="cmd-num">08</span>
+          <span class="cmd-title">Reporting</span>
+          <div class="copy-cmd">
+            <span class="copy-cmd-text" id="cmd-8">/ideation:execute-spec docs/ideation/helpstripe/spec-phase-8.md</span>
+            <button type="button" class="copy-btn" data-copy="cmd-8">copy</button>
+          </div>
+        </div>
+      </div>
+
+      <details class="agent-team-details">
+        <summary>Agent Team Prompt (parallel execution)</summary>
+        <div class="agent-team-body">
+          <div class="copy-cmd copy-cmd-wide">
+            <span class="copy-cmd-text" id="agent-team-prompt">Execute the HelpStripe build plan from docs/ideation/helpstripe/contract.md with an agent team.
+
+Phase order constraints:
+- Phase 1 (Foundation &amp; Domain Models) completes first — run solo.
+- Phase 2 (Ticket Management) runs next, solo (its actions/events are prerequisites for most branches).
+- After Phase 2: run in parallel — Phase 3 (Shared Inbox), Phase 5 (Knowledge Base), Phase 7 (Collision Detection), Phase 8 (Reporting).
+- Phase 4 (Portal) and Phase 6 (Automation) start only after Phase 3 completes.
+
+Teammate assignments (one phase per teammate):
+- Teammate A: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-3.md, then spec-phase-4.md
+- Teammate B: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-5.md, then spec-phase-6.md (after Phase 3)
+- Teammate C: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-7.md
+- Teammate D: /ideation:execute-spec docs/ideation/helpstripe/spec-phase-8.md
+
+Coordinate on shared files (routes/web.php, resources/views/layouts/app/sidebar.blade.php, database/seeders/DemoSeeder.php, composer.json, .env.example, app/Models/Request.php, resources/views/pages/requests/⚡show.blade.php) — only one teammate modifies a shared file at a time; announce before touching them.
+
+Every teammate finishes with ./init.sh green and updates feature_list.json + progress.md per the repo harness rules before reporting done.</span>
+            <button type="button" class="copy-btn" data-copy="agent-team-prompt">copy</button>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <script>
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = document.getElementById(btn.dataset.copy);
+          if (!target) return;
+          navigator.clipboard.writeText(target.textContent.trim()).then(() => {
+            btn.textContent = 'copied';
+            setTimeout(() => (btn.textContent = 'copy'), 1500);
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
