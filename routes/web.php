@@ -100,6 +100,17 @@ Route::prefix('{current_team}')
         Route::middleware('can:view reports')->group(function () {
             Route::livewire('reports', 'pages::reports.index')->name('reports.index');
         });
+
+        // Automation rule builder — same permission-gate pattern again, behind
+        // the 'manage automation' ability. `automation/create` precedes
+        // `automation/{rule}` so "create" isn't parsed as a rule id;
+        // cross-team rule ids 404 in the component's mount (like the KB
+        // manager — permission gates the section, mount guards the row).
+        Route::middleware('can:manage automation')->group(function () {
+            Route::livewire('automation', 'pages::automation.index')->name('automation.index');
+            Route::livewire('automation/create', 'pages::automation.edit')->name('automation.create');
+            Route::livewire('automation/{rule}', 'pages::automation.edit')->name('automation.edit');
+        });
     });
 
 Route::middleware(['auth'])->group(function () {

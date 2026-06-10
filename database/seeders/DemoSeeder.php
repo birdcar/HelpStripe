@@ -2,9 +2,14 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ConditionField;
+use App\Enums\ConditionOperator;
 use App\Enums\RequestSource;
 use App\Enums\RequestStatus;
+use App\Enums\RuleAction;
+use App\Enums\RuleLayer;
 use App\Enums\TeamRole;
+use App\Models\AutomationRule;
 use App\Models\Category;
 use App\Models\Chapter;
 use App\Models\Customer;
@@ -64,6 +69,7 @@ class DemoSeeder extends Seeder
         $this->seedResponses($team);
         $this->seedFilters($team, $staff);
         $this->seedKnowledgeBase($team);
+        $this->seedAutomationRules($team, $categories, $staff);
 
         $this->printPortalDemoCredentials();
     }
@@ -365,6 +371,73 @@ class DemoSeeder extends Seeder
             'user_id' => $staff->first()->id,
             'name' => 'Urgent Unassigned',
             'criteria' => ['assignee' => 'unassigned', 'urgent' => true],
+        ]);
+    }
+
+    /**
+     * One automation rule per layer, exercising the whole engine end-to-end:
+     *
+     *  - Mail Rule: inbound mail whose subject mentions "invoice" or "refund"
+     *    is filed under Billing on arrival (correct from birth).
+     *  - Trigger: a new urgent request notifies the Administrator (database +
+     *    mail) the moment it's created.
+     *  - Automation Rule (scheduled): a request older than 24h that isn't yet
+     *    urgent gets escalated by `automation:run`. The "AND not urgent" clause
+     *    is the idempotence-by-design pattern — once urgent, the rule can't
+     *    re-match, so repeated runs are no-ops.
+     *
+     * @param  Collection<int, Category>  $categories
+     * @param  Collection<int, User>  $staff
+     */
+    private function seedAutomationRules(Team $team, Collection $categories, Collection $staff): void
+    {
+        $billing = $categories->firstWhere('name', 'Billing');
+        $admin = $staff->first();
+
+        AutomationRule::create([
+            'team_id' => $team->id,
+            'layer' => RuleLayer::Mail,
+            'event' => null,
+            'name' => 'Billing keyword routing',
+            'is_active' => true,
+            'position' => 1,
+            'conditions' => [
+                ['field' => ConditionField::Subject->value, 'operator' => ConditionOperator::Contains->value, 'value' => 'invoice'],
+            ],
+            'actions' => [
+                ['action' => RuleAction::SetCategory->value, 'value' => $billing->id],
+            ],
+        ]);
+
+        AutomationRule::create([
+            'team_id' => $team->id,
+            'layer' => RuleLayer::Trigger,
+            'event' => 'request_created',
+            'name' => 'Escalate new urgent requests',
+            'is_active' => true,
+            'position' => 1,
+            'conditions' => [
+                ['field' => ConditionField::IsUrgent->value, 'operator' => ConditionOperator::Equals->value, 'value' => true],
+            ],
+            'actions' => [
+                ['action' => RuleAction::NotifyUser->value, 'value' => $admin->id],
+            ],
+        ]);
+
+        AutomationRule::create([
+            'team_id' => $team->id,
+            'layer' => RuleLayer::Scheduled,
+            'event' => null,
+            'name' => 'Escalate requests unanswered for 24h',
+            'is_active' => true,
+            'position' => 1,
+            'conditions' => [
+                ['field' => ConditionField::AgeHours->value, 'operator' => ConditionOperator::GreaterThan->value, 'value' => 24],
+                ['field' => ConditionField::IsUrgent->value, 'operator' => ConditionOperator::Equals->value, 'value' => false],
+            ],
+            'actions' => [
+                ['action' => RuleAction::SetUrgent->value, 'value' => true],
+            ],
         ]);
     }
 

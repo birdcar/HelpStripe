@@ -1,8 +1,70 @@
 # Context Map: helpstripe
 
-**Phase**: 4
-**Scout Confidence**: 92/100
+**Phase**: 6
+**Scout Confidence**: 94/100
 **Verdict**: GO
+
+> Phase 6 (Automation Rules) ran inline scout (same read-only workflow). feat-006 depends on feat-003 (done). All prior phase sections retained below; Phase 6 findings added directly under this header.
+
+## Phase 6 Findings (Automation Rules)
+
+**Verdict GO (94/100).** Every file in the spec is identified; the engine reuses the Phase 2 action classes (CreateRequest/AddNote/AssignRequest/ChangeStatus), the Phase 8 SLA scopes (scopeSlaBreached/scopeSlaOverdue), the existing domain events, and established conventions (JSON casts, value objects, query objects, page SFCs). The `manage automation` permission ALREADY EXISTS (PermissionSeeder line 32, on Administrator).
+
+### Dimensions (Phase 6)
+
+| Dimension | Score | Notes |
+| --- | --- | --- |
+| Scope clarity | 19/20 | All files identified. Engine API specified (`ConditionEvaluator::matches`, `Condition::fromArray`, `cause` label for activitylog). Open Q: exact activitylog causedBy mechanism — resolved during build. |
+| Pattern familiarity | 19/20 | Action classes, events, listener (SendPublicReplyEmail), DTO (InboundEmail), JSON cast (Filter::criteria), value objects (UserTeam/CategoryReport), page SFC (teams ⚡edit/⚡index), command (ReplayInboundMail) all read. |
+| Dependency awareness | 19/20 | applyMailRules seam in ProcessInboundEmail:154 is a no-op pass-through. Events have existing listeners (SendPublicReplyEmail on NoteAdded) — adding EvaluateTriggers is additive. AssignRequest/RequestAssignedNotification already accept null actor "for Phase 6 automation". |
+| Edge case coverage | 18/20 | Loop guard (applying-context), empty actions, deleted category in action, malformed JSON hydration, idempotence-by-design, reply-bypasses-mail-rules, position ordering (later wins). |
+| Test strategy | 19/20 | Pest feature tests under tests/Feature/Automation/. ConditionEvaluator pure-logic; travel() frozen time for scheduled; Event::fake (explicit lists — Request::boot needs creating); existing ActionsTest is the action-through-event template. |
+
+### Key Patterns (Phase 6)
+
+- `app/Jobs/ProcessInboundEmail.php:60-66,149-157` — the `applyMailRules(InboundEmail $email): InboundEmail` seam. Currently `return $email;`. Phase 6 fills it: run active mail-layer rules in position order, accumulating category/urgent/assignee OVERRIDES that the new-request branch (lines 106-117) folds into the `CreateRequest` payload. Mail rules act on the email *before* matching; replies (existing request, lines 89-105) bypass rules per HelpSpot.
+- `app/Models/Request.php:227-321` — `scopeSlaBreached()`/`scopeSlaOverdue()` are the SINGLE SLA source of truth (Phase 8). Any SLA condition in the automation engine MUST call these scopes, never re-derive. They're query scopes (return void, mutate Builder), usable as `Request::query()->slaBreached()` / `->slaOverdue()`.
+- `app/Actions/Requests/{CreateRequest,AddNote,AssignRequest,ChangeStatus}.php` — ActionApplier executes effects through THESE, never writing models directly, so activitylog + events + first_responded_at bookkeeping stay correct. AssignRequest::handle(Request, ?User assignee, ?User actor=null) — automation passes actor=null (notification still fires to assignee). ChangeStatus owns resolved_at + RequestStatusChanged. AddNote(Request, User|Customer, body, isPrivate, source, messageId, attachments).
+- `app/Listeners/SendPublicReplyEmail.php` — the queued-listener template: `implements ShouldQueue`, `use InteractsWithQueue`, type-hinted `handle(NoteAdded $event)` (auto-discovery by type-hint — NO manual registration; confirmed no EventServiceProvider listen() array). EvaluateTriggers mirrors this, listening to RequestCreated/RequestStatusChanged/NoteAdded.
+- `app/Support/Resend/InboundEmail.php` — DTO with a static `fromResend()` factory + readonly promoted constructor props + private parse helpers. Condition/Action value objects follow this: `final` class, readonly props, static `fromArray()`, throw `InvalidArgumentException` on malformed input (the engine catches per-rule + logs + skips).
+- `app/Models/Filter.php:65-71` — the JSON cast pattern: `'criteria' => 'array'` in `casts()`. AutomationRule casts `conditions`/`actions` to `'array'` the same way; the model exposes accessors that hydrate the arrays into Condition[]/Action[] value objects (casts → value object mapping, taught without a library).
+- `app/Data/{UserTeam,CategoryReport,AgentReport}.php` — readonly value-object precedent in `App\Data\`. But the spec puts the engine VOs under `app/Support/Automation/` (Condition/Action); follow the spec's location — they're engine-internal, alongside RuleEngine/ConditionEvaluator/ActionApplier, not report DTOs.
+- `app/Console/Commands/ReplayInboundMail.php` — artisan command template (signature, handle, $this->info). RunAutomationRules (`automation:run`) mirrors it.
+- `app/Notifications/RequestAssignedNotification.php` — `Notification implements ShouldQueue`, `use Queueable`, constructor promotion, `via()=['database','mail']`, `toMail()` MailMessage, `toArray()`. AutomationNotification follows this exactly ("Rule X fired on Request #N").
+- `resources/views/pages/teams/⚡edit.blade.php` + `⚡index.blade.php` — page SFC anatomy: `mount(Model)` route-model bind + `Gate::authorize`, `#[Computed]`, action methods resolving deps as args, `Flux::toast`, inline `<flux:modal :show="$errors->isNotEmpty()">`, repeater rows of `@foreach`, `flux:select`/`flux:select.option`, `data-test` attrs. The rule builder's condition/action rows are array-prop repeaters with add/remove methods (mirrors how members are listed). NOTE: the index here uses route-model-bound CRUD gated by `can:manage knowledge base` (routes/web.php:90-94) — automation routes mirror that with `can:manage automation`.
+- `resources/views/pages/reports/⚡index.blade.php` — `#[Url]` prop, `#[Computed]` delegating to query objects, `flux:select wire:model.live`, `flux:table`. Mirror for the automation index grouping + active toggle.
+- `database/migrations/2026_06_10_140534_create_requests_table.php` — migration teaching-comment style: heavy `//` annotations, `$table->foreignId('team_id')->constrained()`, composite `$table->index([...])`. The automation_rules migration follows it (spec gives the exact schema).
+
+### Dependencies (Phase 6)
+
+- `app/Jobs/ProcessInboundEmail.php` — `applyMailRules()` filled in place; the new-request branch consumes accumulated overrides. Consumed by Inbox tests (InboundMatchingTest/InboundWebhookTest/InboundAttachmentTest) — mail-rule changes must keep the no-rule path identical (no rules → email passes through unchanged → existing tests green).
+- `routes/console.php` — currently only the `inspire` command. Gains `Schedule::command('automation:run')->everyFiveMinutes()`. Schedule facade import needed.
+- `routes/web.php` — automation routes go in the `{current_team}` group behind `can:manage automation` (mirror the KB/reports `Route::middleware('can:...')->group`).
+- `resources/views/layouts/app/sidebar.blade.php` — add `@can('manage automation')` nav item (mirror the `@can('view reports')` / `@can('manage knowledge base')` blocks).
+- `composer.json` dev script — add `php artisan schedule:work` to the concurrently stack (alongside server/queue/logs/reverb/vite). Update `--names`.
+- `database/seeders/DemoSeeder.php` — DemoSeederTest asserts EXACT counts of existing entities; seeding automation rules must be purely additive (new `seedAutomationRules($team, $categories, $staff)` appended in `run()`). Three rules: mail (billing→Billing category), trigger (new urgent→notify admin), scheduled (unanswered 24h→urgent).
+- Events (RequestCreated/RequestStatusChanged/NoteAdded) — EvaluateTriggers is an additive listener; existing listeners (SendPublicReplyEmail on NoteAdded) unaffected.
+- `database/seeders/PermissionSeeder.php` — NO change: `manage automation` is already present (line 32, on Administrator).
+
+### Conventions (Phase 6)
+
+- **Naming**: `app/Support/Automation/{RuleEngine,ConditionEvaluator,ActionApplier,Condition,Action}.php`; enums `app/Enums/{RuleLayer,ConditionField,ConditionOperator,RuleAction}.php` (string-backed, TitleCase cases, `label()` helper); `app/Listeners/EvaluateTriggers.php`; `app/Console/Commands/RunAutomationRules.php`; `app/Notifications/AutomationNotification.php`; model `app/Models/AutomationRule.php` + factory; views `resources/views/pages/automation/⚡{index,edit}.blade.php`; tests `tests/Feature/Automation/*Test.php`.
+- **Loop guard**: ActionApplier sets a static flag (spec: `RuleEngine::$applying`) so EvaluateTriggers skips events emitted by automation itself. Single-level suppression — wrap apply in try/finally to reset the flag.
+- **Activitylog causation**: ActionApplier takes a `cause` string label; activitylog's `activity()->...->log()` or the model's `LogsActivity` description. Reuse the existing LogsActivity on Request (logs status/assigned_to/category_id/is_urgent) — the ActionApplier routes through the Phase 2 actions which already update those columns, so the diff is logged automatically. The "what automated this" label needs a causer/description hook — resolve mechanism during build (likely `activity()->by(...)->withProperties(...)->log()` OR set a description via `tap`/event). Logged as an implementation note if non-obvious.
+- **Testing**: Pest feature tests, `RefreshDatabase` (global), `Event::fake([...])` with EXPLICIT lists (bare fake breaks Request::boot creating), `Notification::fake()`, `Mail::fake()`, `$this->travelTo()`/`travel()` for time, `CarbonImmutable::setTestNow()`, factories with states, `data-test` attrs for DOM, `Livewire::test('pages::automation.index')`.
+
+### Risks (Phase 6)
+
+- **Trigger infinite loop**: a trigger whose action re-fires its own event (e.g. status-change trigger that changes status). Mitigation: `RuleEngine::$applying` context flag set by ActionApplier; EvaluateTriggers returns early when set. Single-level only (documented limitation). Dedicated test: automation-caused status change does NOT re-fire triggers.
+- **Scheduled rule re-match**: a non-self-extinguishing condition re-fires every 5-min run. Mitigation: idempotence-by-design (the seeded "unanswered 24h AND not urgent → set urgent" can't re-match once urgent). Test: run twice → second run no-ops. Doc warning in builder UI.
+- **Deleted entity in action**: `set_category` referencing a deleted category → skip that action, add a private note "automation action skipped", continue the rule (spec error-handling row). Test it.
+- **Malformed rule JSON**: hand-edited conditions/actions that don't hydrate → value-object `fromArray` throws → engine catches per-rule, skips + logs, continues. Test with a bad shape.
+- **Field/subject mismatch**: `age_hours` condition on the mail layer (InboundEmail has no age) → evaluator returns false (non-match), debug log. Builder UI filters fields per layer. ConditionEvaluator resolves fields differently per subject type (Request vs InboundEmail).
+- **Mail-rule order sensitivity**: two rules touching the same field → later (higher position) wins because actions accumulate into the payload in position order. Test + documented.
+- **Inbox-test regression**: filling applyMailRules must leave the no-rules path byte-identical. Run `--filter=Inbox` after the mail-rule change.
+- **Event::fake in trigger tests**: bare `Event::fake()` fakes Eloquent model events and breaks access-key generation (ActionsTest header documents this). Always pass an explicit event-class list, OR let events fire for real and assert side effects (the listener actually running through the queue:sync).
+
+---
 
 > Phase 4 (Self-Service Portal) ran inline scout (same read-only workflow). feat-004 depends on feat-003 (done). Phase 5 already shipped `layouts/portal.blade.php` + the `portal` route group — Phase 4 EXTENDS both. Phase 4 findings added below; all prior phase sections retained.
 

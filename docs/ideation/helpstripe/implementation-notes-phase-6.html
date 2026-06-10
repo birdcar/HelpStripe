@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 6</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 6</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Automation Rules</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>Mail rules accumulate create-payload overrides, not email mutations</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec described <code>applyMailRules()</code> as the seam and
+            implied the engine would "recategorize, reroute, or drop the email."
+            The Phase 3 seam signature was
+            <code>applyMailRules(InboundEmail): InboundEmail</code> — a
+            pass-through that returned a (possibly mutated) email. But mail-rule
+            actions (<code>set_category</code>, <code>assign_to</code>,
+            <code>set_urgent</code>) are properties of the <em>request</em>, not
+            the email — there's no request yet when a mail rule runs.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Introduced <code>MailRuleEvaluator::overridesFor(InboundEmail,
+            teamId): array</code>, which returns a
+            <code>{category_id?, assigned_to?, is_urgent?}</code> overrides map.
+            The job's signature changed to
+            <code>applyMailRules(InboundEmail, int $teamId): array</code> and the
+            new-request branch spreads the overrides into the
+            <code>CreateRequest</code> payload
+            (<code>[..., ...$overrides]</code>). The request is "correct from
+            birth" — one INSERT, no post-hoc edit — which is exactly what the
+            spec's "one create, correct from birth" line asked for. Replies (the
+            matched-existing-request branch) never call it, so they bypass mail
+            rules as HelpSpot does. The no-rules path returns
+            <code>[]</code> and the spread is a no-op, so the entire Inbox suite
+            (27 tests) stayed green.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Keep the <code>InboundEmail → InboundEmail</code> shape and add
+            mutable override fields to the DTO. Rejected: <code>InboundEmail</code>
+            is a <code>final</code> readonly parse-once DTO (the single Resend
+            parse point), and bolting request-shaped mutable state onto it would
+            blur its single responsibility and break its immutability contract.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>Trigger listener uses one class with three <code>handle*</code> methods</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec lists a single <code>EvaluateTriggers</code> queued listener
+            on three events (RequestCreated, RequestStatusChanged, NoteAdded).
+            Laravel's event auto-discovery (the mechanism this repo relies on —
+            <code>SendPublicReplyEmail</code> has no manual registration) binds a
+            listener by the type-hint of a method named <code>handle</code> —
+            which only maps one event per class.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Verified in the framework's <code>DiscoverEvents</code> that the
+            match is <code>Str::is('handle*', $method-&gt;name)</code> — <em>any</em>
+            public method whose name starts with <code>handle</code> and whose
+            first parameter is an event type is auto-discovered. So
+            <code>EvaluateTriggers</code> has
+            <code>handleRequestCreated</code> / <code>handleRequestStatusChanged</code>
+            / <code>handleNoteAdded</code>, each bound automatically.
+            <code>php artisan event:list</code> confirms all three bindings. No
+            EventServiceProvider, no subscriber registration.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            An event subscriber (<code>subscribe()</code> method) or three
+            separate listener classes. The subscriber would need manual
+            registration (breaking the zero-config auto-discovery convention);
+            three classes would triplicate the loop-guard + engine-dispatch
+            boilerplate. The <code>handle*</code> convention is idiomatic and
+            keeps the three handlers — which share <code>run()</code> — in one
+            file.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>Loop guard works because the sync queue runs nested events in-stack</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The guard is a static <code>RuleEngine::$applying</code> flag set by
+            <code>ActionApplier</code>. <code>EvaluateTriggers</code> is
+            <code>ShouldQueue</code>. If the listener ran in a separate worker
+            process (real async queue), the static flag set in the web process
+            wouldn't be visible to the worker, so the guard would appear not to
+            work.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Kept the listener queued (per spec) and the guard static. The guard
+            is effective because, under the test/request sync queue, a trigger
+            action that fires its own event dispatches the nested
+            <code>EvaluateTriggers</code> <em>synchronously, inside</em> the
+            <code>apply()</code> call stack — where <code>$applying</code> is
+            still <code>true</code> (it's reset in a <code>finally</code> after
+            all effects). So the nested fire is suppressed. The
+            <code>TriggerTest</code> "loop guard" case proves a self-triggering
+            status rule transitions exactly once. Documented as
+            <strong>single-level, sync-dependent</strong> suppression in the tour
+            doc's "Known limitations" — it stops a rule re-firing itself, not
+            arbitrary cross-rule chains on a fully async queue.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Make <code>EvaluateTriggers</code> non-queued (synchronous) to
+            guarantee in-process execution. Rejected: the spec explicitly calls
+            for a queued listener, and the sync-queue test context already
+            exercises the guard correctly. A persistent loop-tracking column or
+            cache key would be the production-grade fix; it's named as future
+            work rather than built, matching the repo's "teach the simple version,
+            name the gap" stance.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>Activity-log causation via a marker entry, not a causer</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec wants the request history to show "what automated the
+            change" via activitylog <code>causedBy</code>/description. But
+            automation has no <code>User</code> causer, and the Phase 2 action
+            classes the applier calls already log their own field diffs through
+            <code>Request</code>'s <code>LogsActivity</code> trait.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            <code>ActionApplier::apply()</code> writes one extra activity entry
+            before running the effects:
+            <code>activity()-&gt;performedOn($request)-&gt;withProperties(['cause' =&gt;
+            $cause])-&gt;log($cause)</code>, where <code>$cause</code> is the rule's
+            layer label + name (e.g. "Mail Rule: Billing keyword routing"). This
+            marker sits alongside the automatic field diffs, so the history reads
+            both <em>what changed</em> (the diffs) and <em>what automated it</em>
+            (the marker) — and it appears even for notify-only rules that produce
+            no field diff. No causer model needed.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A dedicated "system" <code>User</code> to act as the causer. Rejected:
+            the repo deliberately keeps no system user (the inbound pipeline made
+            the same call for its "attachment skipped" notes), and a marker entry
+            is simpler and more legible than a synthetic user row.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

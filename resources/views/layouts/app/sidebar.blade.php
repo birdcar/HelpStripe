@@ -65,6 +65,20 @@
                             {{ __('Reports') }}
                         </flux:sidebar.item>
                     @endcan
+
+                    {{-- Same gate again: the 'manage automation' permission
+                         mirrors the `can:manage automation` middleware on the
+                         automation routes. --}}
+                    @can('manage automation')
+                        <flux:sidebar.item
+                            icon="bolt"
+                            :href="route('automation.index')"
+                            :current="request()->routeIs('automation.*')"
+                            wire:navigate
+                        >
+                            {{ __('Automation') }}
+                        </flux:sidebar.item>
+                    @endcan
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

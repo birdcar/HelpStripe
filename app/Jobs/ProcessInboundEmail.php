@@ -12,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Mailbox;
 use App\Models\Note;
 use App\Models\Request;
+use App\Support\Automation\MailRuleEvaluator;
 use App\Support\Resend\InboundEmail;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -59,12 +60,6 @@ class ProcessInboundEmail extends ProcessWebhookJob
 
         $email = InboundEmail::fromResend($payload, $this->fetchEmailContent($emailId));
 
-        // Phase 6's Mail Rules slot in here — the rule engine will get a
-        // chance to recategorize, reroute, or drop the email before any
-        // matching happens. Shipped as a pass-through so the pipeline
-        // doesn't need reopening when rules arrive.
-        $email = $this->applyMailRules($email);
-
         // Idempotency: Resend redelivers when our endpoint answers slowly
         // or 5xxes. The Message-ID landed on a note the first time this
         // email was processed — seeing it again means redelivery, not a
@@ -104,6 +99,14 @@ class ProcessInboundEmail extends ProcessWebhookJob
                 app(ChangeStatus::class)->handle($request, RequestStatus::Active);
             }
         } else {
+            // Mail Rules run only for *new* requests, before creation — replies
+            // (the matched branch above) bypass them, mirroring HelpSpot. The
+            // rules accumulate category/assignee/urgency overrides that fold
+            // into the create payload, so the request is correct from birth
+            // rather than created-then-edited. A rule-set category wins over the
+            // mailbox's default (the spread below applies overrides last).
+            $overrides = $this->applyMailRules($email, $mailbox->team_id);
+
             $request = app(CreateRequest::class)->handle(
                 $customer,
                 $email->subject,
@@ -113,6 +116,7 @@ class ProcessInboundEmail extends ProcessWebhookJob
                     'mailbox_id' => $mailbox->id,
                     'category_id' => $mailbox->category_id,
                     'message_id' => $email->messageId,
+                    ...$overrides,
                 ],
             );
 
@@ -147,13 +151,19 @@ class ProcessInboundEmail extends ProcessWebhookJob
     }
 
     /**
-     * Phase 6 seam: apply Mail Rules to the inbound email.
+     * Compute the Mail Rule overrides for a brand-new request from this email.
      *
-     * No-op pass-through until the rule engine ships.
+     * Delegates to MailRuleEvaluator (the Phase 6 engine), which runs the
+     * team's active mail-layer rules in position order and returns the
+     * category/assignee/urgency overrides the matched rules want. Returns an
+     * empty array when no rules match — the no-rules path is byte-identical to
+     * the pre-Phase-6 pipeline, so the existing Inbox tests stay green.
+     *
+     * @return array{category_id?: int, assigned_to?: int, is_urgent?: bool}
      */
-    protected function applyMailRules(InboundEmail $email): InboundEmail
+    protected function applyMailRules(InboundEmail $email, int $teamId): array
     {
-        return $email;
+        return app(MailRuleEvaluator::class)->overridesFor($email, $teamId);
     }
 
     /**

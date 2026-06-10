@@ -17,7 +17,7 @@ Read the docs in order; each phase builds on the previous ones.
 | 3 | Shared Inbox & Email Pipeline | Shared Inbox | Mailables, inbound webhooks, queues, attachments (medialibrary), artisan commands | 03-shared-inbox.md *(Phase 3)* |
 | 4 | Self-Service Portal | Self-Service Portal | Public routes, guest flows, signed access, Blade layouts | [04-portal.md](04-portal.md) |
 | 5 | Knowledge Base | Knowledge Base | Nested resources, slugs (sluggable), drafts, LIKE search | 05-knowledge-base.md *(Phase 5)* |
-| 6 | Automation Rules | Automation Rules (Mail Rules, Triggers, Automation Rules) | Strategy pattern, domain events, the scheduler, loop guards | 06-automation.md *(Phase 6)* |
+| 6 | Automation Rules | Automation Rules (Mail Rules, Triggers, Automation Rules) | JSON casts → value objects, queued event listeners, the scheduler, loop guards | [06-automation.md](06-automation.md) |
 | 7 | Collision Detection | (Ticket Management: "who's viewing") | Broadcasting, Reverb, Echo presence channels | [07-collision-detection.md](07-collision-detection.md) |
 | 8 | Reporting | Reporting | Aggregate queries, query scopes (shared SLA definition), CarbonPeriod, Flux charts | [08-reporting.md](08-reporting.md) |
 
