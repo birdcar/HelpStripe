@@ -238,7 +238,12 @@ The seeder creates one rule per layer. Then:
 4. **Build your own** — open **Automation** in the sidebar, click **New rule**,
    pick a layer, add a condition and an action, save, and watch it fire.
 
-## 8. What's covered by tests
+## 8. Verify
+
+```bash
+php artisan test --compact --filter=Automation   # the six suites below
+./init.sh                                         # lint + static analysis + full suite
+```
 
 - `ConditionEvaluatorTest` — the full operator × field matrix on both subject
   types, case-insensitive `contains`, `is_null`, numeric `gt`/`lt` with frozen
@@ -252,6 +257,10 @@ The seeder creates one rule per layer. Then:
 - `RuleBuilderTest` — permission gate (403 + hidden nav), build-from-scratch,
   server-side enum rejection, layer-fixed-after-create, toggle/delete,
   cross-team 404.
+- `EngineEdgeCaseTest` — the engine's failure modes: a malformed rule is
+  skipped (not fatal), empty actions still log a cause, a deleted target
+  entity becomes a private note instead of crashing, and two scheduled rules
+  can both touch one request.
 
 ## 9. Known limitations (named, not hidden)
 

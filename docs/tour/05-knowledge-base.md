@@ -244,9 +244,8 @@ Staff).
 ## 10. Verify
 
 ```bash
-php artisan test --compact --filter=KnowledgeBase   # all three suites
-composer lint
-composer test
+php artisan test --compact --filter=KnowledgeBase   # AdminCrud, PortalBrowsing, Search
+./init.sh                                           # lint + static analysis + full suite
 ```
 
 ## Future Considerations

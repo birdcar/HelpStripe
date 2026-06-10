@@ -196,13 +196,14 @@ render). Echo attaches an `X-Socket-ID` header to outgoing requests;
 the API channel) there's no socket id, so `toOthers()` harmlessly broadcasts
 to everyone — exactly right when no connection "owns" the action.
 
-## 7. Demo: two browsers
+## 7. Demo script: two browsers
 
 You need Reverb running and a built front end:
 
 ```bash
 composer run dev          # serve + queue + reverb + vite, all at once
-# (or, à la carte: php artisan reverb:start  AND  bun run dev)
+# a la carte, you'd run each in its own pane: php artisan serve,
+# php artisan queue:listen, php artisan reverb:start, and bun run dev
 ```
 
 Log in as two different seeded staff (e.g. a normal window + an incognito

@@ -250,6 +250,10 @@ composer run dev   # serve + queue:listen + pail + vite — the queue worker mat
 ## 11. Verify
 
 ```bash
-php artisan test --compact --filter=Requests   # 4 suites: Queue, ShowRequest, Actions, Filter
-./init.sh                                      # lint + static analysis + full suite
+php artisan test --compact tests/Feature/Requests   # 4 suites: Queue, ShowRequest, Actions, Filter
+./init.sh                                            # lint + static analysis + full suite
 ```
+
+(Scope by path here, not `--filter=Requests` — "request" is a substring of
+many other test names across later phases, so the filter would pull in far
+more than these four suites.)

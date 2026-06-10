@@ -280,7 +280,12 @@ who has `view reports`.
 That closes the tour. All six HelpSpot pillars are now reimplemented in
 idiomatic Laravel — see [README.md](README.md) for the full map.
 
-## 11. Tests
+## 11. Verify
+
+```bash
+php artisan test --compact --filter=Reports   # the six suites below
+./init.sh                                      # lint + static analysis + full suite
+```
 
 `tests/Feature/Reports/` proves the aggregates with fixed datasets under a
 frozen clock, so every expected number is exact:
@@ -297,9 +302,3 @@ frozen clock, so every expected number is exact:
 - **`QueueSnapshotTest`** — the five stat-card counts.
 - **`ReportsPageTest`** — the permission gate (403 + nav hidden/shown), all
   four blocks rendering, and range switching re-scoping the data (30d ⊇ 7d).
-
-Run them with:
-
-```bash
-php artisan test --compact --filter=Reports
-```

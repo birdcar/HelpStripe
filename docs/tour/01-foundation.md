@@ -235,3 +235,14 @@ Then log in at the app (via `composer run dev` or Herd) as
 `sam@helpstripe.test` / `password`: the dashboard renders and the sidebar
 shows the **Queue** placeholder. Phase 2 turns it into the real request
 queue.
+
+## 9. Verify
+
+```bash
+php artisan test --compact --filter=Foundation   # schema, models, enums, factories, seeder
+./init.sh                                         # lint + static analysis + full suite
+```
+
+The `Foundation` suite covers the migration/relation graph, the enums and
+their casts, the `access_key` model event, the factories and their states,
+and `DemoSeederTest`'s exact-count assertions over the seeded installation.

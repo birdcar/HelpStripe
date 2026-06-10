@@ -245,10 +245,11 @@ If you don't want to set up mail at all, use the seeder-printed credentials
   email+key lookup always works, so it's the recovery path — noted here so a
   rotated key doesn't read as a bug.
 
-## 9. Tests
+## 9. Verify
 
 ```bash
-php artisan test --compact --filter=Portal
+php artisan test --compact tests/Feature/Portal   # submit, lookup, customer reply
+./init.sh                                          # lint + static analysis + full suite
 ```
 
 - `SubmitRequestTest` — happy path (Portal source, mail queued, opening
