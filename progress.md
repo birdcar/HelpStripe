@@ -3,7 +3,7 @@
 ## Current State
 
 **Last Updated:** 2026-06-10
-**Active Feature:** feat-003 complete — Phase 3 (Shared Inbox & Email Pipeline) done
+**Active Feature:** feat-007 complete — Phase 7 (Collision Detection) done
 
 ## Status
 
@@ -16,6 +16,7 @@
 - [x] **feat-002 Ticket Management (Phase 2)** — request queue (⚡index) with #[Url] criteria filters + saved Filters + save-filter modal; request detail (⚡show) with timeline/reply box/canned Response picker/properties panel/history tab; Filter + Response models; CreateRequest/AddNote/AssignRequest/ChangeStatus actions; 4 domain events; RequestAssignedNotification; RequestQueue query object; RequestPolicy; 61 Requests tests; docs/tour/02-ticket-management.md
 - [x] **feat-005 Knowledge Base (Phase 5)** — KnowledgeBook/Chapter/Page models (HasSlug with per-parent extraScope, #[Scope] published, position max+1 in boot) + migrations (composite unique slugs, cascade FKs) + factories; spatie/laravel-sluggable v4 installed; admin manager SFCs pages/kb/⚡{index,book,edit-page} behind `can:manage knowledge base` (cross-team ids 404 in mount/actions); public portal: layouts/portal.blade.php + pages/portal/kb/⚡{index,book,page,search} with nested-slug routes + scopeBindings(); LIKE search with explicit ESCAPE clause; Str::markdown html_input=escape everywhere (editor preview + portal); sidebar @can nav item; DemoSeeder +2 books/3 chapters/10 pages; 49 KnowledgeBase tests; docs/tour/05-knowledge-base.md
 - [x] **feat-003 Shared Inbox & Email Pipeline (Phase 3)** — three intake channels converging on Phase 2's CreateRequest/AddNote. Outbound: PublicReplyMail + NewRequestConfirmationMail (threading headers Message-ID/In-Reply-To/References + [#id] subject token), SendPublicReplyEmail queued listener on NoteAdded. Inbound: spatie/laravel-webhook-client store-then-process, ResendSignatureValidator (svix HMAC over raw body), InboundEmail DTO (single parse point), ProcessInboundEmail job (match→header/subject-token/new, reopen Resolved/Closed, idempotent on message_id, medialibrary attachments with size-cap skip→private note). mail:replay command (offline fixture replay). API: POST /api/v1/requests behind AuthenticateApiToken (static bearer + hash_equals), StoreRequestRequest (team-scoped category rule), RequestResource (201 + access_key), RequestController. 34 tests (Inbox 27 + Api 7); docs/tour/03-shared-inbox.md
+- [x] **feat-007 Collision Detection (Phase 7)** — Laravel Reverb + Echo presence channels. `install:broadcasting --reverb` wired config/{broadcasting,reverb}.php + `channels:` routing + echo.js scaffold + `import './echo'` in app.js; laravel-echo/pusher-js added via bun; REVERB_*/VITE_REVERB_* in .env.example (placeholders) + dev script gains `reverb:start`. routes/channels.php `request.{id}` presence channel (auth = `belongsToTeam`, mirrors RequestPolicy::view; returns id+name payload). NoteAdded `implements ShouldBroadcast` (PresenceChannel `request.{id}`, broadcastWith = note_id ONLY — no body on the wire). AddNote dispatches via `broadcast()->toOthers()` (listener path unchanged). ⚡show: `getListeners()` for here/joining/leaving→$viewers (dedupe by id, self-excluded) + NoteAdded→refreshTimeline; `viewers.blade.php` presentational banner partial (avatar.group + warning text). 13 Collision tests (ChannelAuth 3, Broadcast 4, ViewerState 5); docs/tour/07-collision-detection.md.
 
 ### What's In Progress
 
@@ -25,7 +26,7 @@
 
 1. feat-004 Self-Service Portal (depends on feat-003 ✅): `/ideation:execute-spec docs/ideation/helpstripe/spec-phase-4.md` — NOTE: Phase 5 already created `layouts/portal.blade.php` and the `portal` route group; Phase 4 must EXTEND both, not recreate (see implementation-notes-phase-5.html). The NewRequestConfirmationMail (access key) and Customer email+key auth model are already in place from Phase 3.
 2. feat-006 Automation Rules (depends on feat-003 ✅): the Mail Rules seam is shipped — `ProcessInboundEmail::applyMailRules()` is a no-op pass-through Phase 6 fills.
-3. Also unblocked: feat-007 Collision Detection (deps: feat-002), feat-008 Reporting (deps: feat-002)
+3. Also unblocked: feat-008 Reporting (deps: feat-002)
 
 ## Blockers / Risks
 
@@ -62,6 +63,27 @@
 - **(Phase 3)** mail:replay fakes the Resend reads AND each attachment's CDN download_url (read from the fixture listing) with per-URL stubs — a trailing `*` wildcard leaked across fixtures in a replay-all run and intercepted the next content fetch
 - **(Phase 3)** DemoSeeder mailbox addresses now derive from `config('helpstripe.inbound_domain')` (default helpstripe.test) so seeded support@/billing@ match a wired Resend domain
 - **(Phase 3)** Mail Rules seam: `ProcessInboundEmail::applyMailRules($email)` ships as a no-op pass-through for Phase 6 to fill — the inbound pipeline never reopens
+- **(Phase 7)** Presence (not private) channel — the member-list payload IS the collision feature; auth closure returns `['id'=>, 'name'=>]` and mirrors `RequestPolicy::view` (team membership). Tour doc contrasts HTTP policy vs channel-closure authorization for the same resource.
+- **(Phase 7)** `broadcastWith` sends `note_id` ONLY — the component re-queries through the authorized computed property; private-note bodies never ride the websocket. BroadcastTest payload-shape assertion is the pin against a future dev fattening the payload.
+- **(Phase 7)** AddNote uses `broadcast(new NoteAdded($note))->toOthers()` — the helper still fires the SendPublicReplyEmail listener AND queues the broadcast; `toOthers()` stops the author's own page double-rendering (no socket id in queued/API contexts → broadcasts to all, which is correct).
+- **(Phase 7)** Livewire 4 echo listeners with an id-embedded channel use `getListeners()` (not the `#[On('echo-presence:…')]` attribute) — `"echo-presence:request.{$id},here|joining|leaving|NoteAdded"`. NoteAdded is a class-name event → no leading dot (dots are only for `broadcastAs()` custom names). Resolves the spec's Open Item.
+- **(Phase 7)** Viewer banner is `viewers.blade.php` (a plain Blade partial, NOT a `⚡` Livewire SFC as the spec filename suggested) — a second component subscribing to the same presence channel would double-count the roster. Presence state + listeners live in exactly one place (⚡show); the partial only renders `$viewers`. (Logged in implementation-notes-phase-7.html.)
+- **(Phase 7)** ChannelAuthTest must force `broadcasting.default=reverb` AND `require base_path('routes/channels.php')` in beforeEach — under the suite default `BROADCAST_CONNECTION=null`, the framework never loads the channel closures, leaving the registry empty so every channel 403s. The reverb (Pusher-protocol) driver signs/denies for real with dummy creds; nothing connects out.
+
+## Files Modified This Session (Phase 7)
+
+- New (app): routes/channels.php (request.{id} presence channel; install:broadcasting created it with the default User channel, extended here), resources/js/echo.js (Reverb broadcaster scaffold), resources/views/pages/requests/viewers.blade.php (banner partial), config/broadcasting.php + config/reverb.php (published by installer)
+- New (tests + docs): tests/Feature/Collision/{ChannelAuthTest,BroadcastTest,ViewerStateTest}.php, docs/tour/07-collision-detection.md
+- Modified: composer.json/lock (+laravel/reverb; dev script +reverb:start), package.json/bun.lock (+laravel-echo +pusher-js), resources/js/app.js (import './echo'), bootstrap/app.php (channels: routing — by installer), .env.example (BROADCAST_CONNECTION=reverb + REVERB_*/VITE_REVERB_* placeholders), .env (real REVERB_* keys — untracked), app/Events/NoteAdded.php (ShouldBroadcast + broadcastOn/broadcastWith), app/Actions/Requests/AddNote.php (broadcast()->toOthers() dispatch), resources/views/pages/requests/⚡show.blade.php ($viewers prop + getListeners + here/joining/leaving/refreshTimeline handlers + @include banner)
+- Ideation artifacts: docs/ideation/helpstripe/context-map.md (Phase 7 extension), implementation-notes-phase-7.html (4 entries: install TTY/bun workaround, ChannelAuthTest driver+channels-load, viewer partial vs SFC, getListeners vs attribute)
+
+## Evidence of Completion (Phase 7)
+
+- `./init.sh` → composer install OK; pint passed; phpstan passed (0 errors); pest **240/240 passed (944 assertions)**
+- `php artisan test --compact --filter=Collision` → **13 passed** (ChannelAuth 3, Broadcast 4, ViewerState 5 + shared helper)
+- `bun run build` → Echo + Pusher bundled (app.js 0 B → 73 KB)
+- Review cycle: 1 of 3, verdict PASS (0 critical/high).
+- Two-browser live presence + live-reply demo is the manual matrix in docs/tour/07-collision-detection.md §7 (requires `composer run dev` with reverb:start). Pest covers the auth matrix + broadcast contract + viewer-state rules offline.
 
 ## Files Modified This Session (Phase 3)
 

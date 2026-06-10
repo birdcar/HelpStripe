@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 7</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 7</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Collision Detection</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>install:broadcasting — JS deps installed with bun, .env.example placeholders</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec calls for
+            <code>php artisan install:broadcasting --reverb --no-interaction</code>.
+            The command published <code>config/broadcasting.php</code> +
+            <code>config/reverb.php</code>, wired
+            <code>channels: …/routes/channels.php</code> into
+            <code>bootstrap/app.php</code>, scaffolded
+            <code>resources/js/echo.js</code> + <code>import './echo'</code> in
+            the (previously empty) <code>resources/js/app.js</code>, and added
+            REVERB_* / VITE_REVERB_* to <code>.env</code> — but its final
+            "Installing and building Node dependencies" step crashed with
+            <code>TTY mode requires /dev/tty</code> (it shells out to
+            <code>npm install</code>, and there is no TTY in this session).
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            The PHP-side scaffold all landed correctly, so the only gap was the
+            JS packages. Installed them with the repo's package manager:
+            <code>bun add laravel-echo pusher-js</code> (the project uses bun,
+            not npm). Then added the REVERB_* / VITE_REVERB_* block to
+            <code>.env.example</code> with <em>empty</em> APP_ID/KEY/SECRET
+            placeholders (the real generated values live only in the untracked
+            <code>.env</code>) and flipped
+            <code>BROADCAST_CONNECTION</code> to <code>reverb</code> there.
+            <code>bun run build</code> then bundled Echo + Pusher into the
+            manifest (app.js grew from 0&nbsp;B to ~73&nbsp;KB).
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Re-run the installer's node step under a pseudo-TTY, or commit the
+            generated secrets to <code>.env.example</code>. Rejected: bun is
+            the project standard (npm would desync the lockfile), and example
+            env files must never carry real credentials.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>ChannelAuthTest — driving /broadcasting/auth under the null broadcaster</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's playground is "<code>ChannelAuthTest</code> posting to
+            <code>/broadcasting/auth</code>." The suite default (phpunit.xml)
+            is <code>BROADCAST_CONNECTION=null</code>. The null broadcaster
+            does two unhelpful things for this test: it returns a non-JSON
+            200 for any auth request (so even denials look like successes),
+            and — the subtler problem — the framework never loads the channel
+            authorization closures from <code>routes/channels.php</code> when
+            the active driver is null, leaving the channel registry empty.
+            With an empty registry, <em>every</em> channel name fails to match
+            and Laravel throws a bare <code>AccessDeniedHttpException</code> —
+            so a legitimate team member 403s for the wrong reason.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            In a <code>beforeEach</code>, point broadcasting at the
+            <code>reverb</code> connection (the Pusher-protocol driver that
+            actually runs the closure and signs the response) with dummy
+            credentials, then <code>require base_path('routes/channels.php')</code>
+            so the closures register against that live driver. The member
+            case then returns 200 with a <code>channel_data</code> JSON string
+            carrying <code>user_id</code> (a <em>string</em>, per the Pusher
+            protocol) and <code>user_info</code> = the closure's array.
+            Foreign-team and guest cases 403 through the real authorization
+            path. Nothing connects to a server — the driver only signs.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Invoke the channel closure in isolation (resolve it out of the
+            broadcaster and call it). Rejected: it skips the
+            <code>/broadcasting/auth</code> route, the guard that denies
+            guests, the route-model binding of <code>{helpdeskRequest}</code>,
+            and the presence-payload shaping — i.e. most of what could break.
+            Driving the real endpoint is the higher-fidelity test the spec
+            asked for.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>Viewer banner is a Blade partial, not a Livewire SFC</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec lists the new file as
+            <code>resources/views/pages/requests/⚡viewers.blade.php</code> —
+            the <code>⚡</code> prefix denotes a Livewire single-file
+            component in this repo. But a presence channel's membership is
+            per-subscription: if a standalone <code>⚡viewers</code> component
+            <em>also</em> joined <code>request.{id}</code>, each browser would
+            open a second subscription and register the same user twice,
+            double-counting the roster (ghost viewer).
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Kept presence in exactly one place — the
+            <code>⚡show</code> component owns the channel listeners
+            (<code>getListeners()</code>) and the <code>$viewers</code> state —
+            and made the banner a pure presentational Blade partial at
+            <code>resources/views/pages/requests/viewers.blade.php</code>
+            (no <code>⚡</code>), <code>@include</code>d with the
+            <code>$viewers</code> array. It holds no state and joins no
+            channel, so the <code>⚡</code> prefix would have been misleading.
+            All four presence/refresh handlers and dedupe-by-id /
+            self-exclusion live in <code>⚡show</code>.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            A nested <code>⚡viewers</code> Livewire component receiving
+            <code>$viewers</code> as a prop (no channel of its own). Rejected:
+            it adds a component round-trip for zero benefit — the banner only
+            ever renders parent state and has no interactions. A partial is
+            the honest, lighter representation; the filename drops
+            <code>⚡</code> to signal "not a component."
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>getListeners() over the #[On('echo-presence:…')] attribute</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's Open Item asked to verify the Livewire 4
+            echo-presence listener syntax. The static
+            <code>#[On('echo-presence:request.{id},here')]</code> attribute
+            interpolates <em>class property</em> names (e.g.
+            <code>{order.id}</code>) — but our channel id comes from the bound
+            <code>$helpdeskRequest</code> model, and we need four listeners
+            (here / joining / leaving / NoteAdded) keyed off the same id.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Used <code>getListeners()</code> (Boost-confirmed for Livewire 4),
+            building
+            <code>"echo-presence:request.{$this-&gt;helpdeskRequest-&gt;id},…"</code>
+            at runtime for all four signals. NoteAdded is a class-name event,
+            so no leading dot is needed (the dot prefix is only for
+            <code>broadcastAs()</code> custom names).
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            The dynamic attribute form
+            <code>#[On('echo-presence:request.{helpdeskRequest.id},here')]</code>.
+            Workable for one listener, but <code>getListeners()</code> keeps
+            all four declarations in one obvious place and matches the
+            existing repo pattern (<code>⚡save-filter-modal</code> uses
+            attributes for static events; dynamic channel ids belong in
+            getListeners).
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

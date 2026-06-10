@@ -29,6 +29,16 @@ use Spatie\Activitylog\Models\Activity;
 new class extends Component {
     public Request $helpdeskRequest;
 
+    /**
+     * Other staff currently looking at this request, keyed by user id.
+     * Maintained entirely client-side from the presence channel — no DB
+     * writes. Presence is ephemeral by design: it lives for the duration
+     * of the websocket connection and disappears when the tab closes.
+     *
+     * @var array<int, array{id: int, name: string}>
+     */
+    public array $viewers = [];
+
     public string $replyMode = 'public';
 
     public string $replyBody = '';
@@ -62,6 +72,94 @@ new class extends Component {
         $this->category = (string) ($request->category_id ?? '');
         $this->urgent = $request->is_urgent;
         $this->tags = $request->tags->pluck('name')->implode(', ');
+    }
+
+    /**
+     * Echo listeners for THIS request's presence channel.
+     *
+     * The channel name embeds the request id, so the listeners can't be
+     * declared with the static `#[On('echo-presence:…')]` attribute (which
+     * can't interpolate a bound model id) — getListeners() builds them at
+     * runtime instead. Four signals on one channel:
+     *
+     *  - `here`    — fired once on join with the full current roster.
+     *  - `joining` — a viewer arrived.
+     *  - `leaving` — a viewer left.
+     *  - `NoteAdded` — someone replied; refresh the timeline. (This is the
+     *    NoteAdded broadcast event; toOthers() on dispatch means the author's
+     *    own page never receives its own note here.)
+     *
+     * @return array<string, string>
+     */
+    public function getListeners(): array
+    {
+        $channel = 'echo-presence:request.'.$this->helpdeskRequest->id;
+
+        return [
+            "{$channel},here" => 'syncViewers',
+            "{$channel},joining" => 'viewerJoined',
+            "{$channel},leaving" => 'viewerLeft',
+            "{$channel},NoteAdded" => 'refreshTimeline',
+        ];
+    }
+
+    /**
+     * The initial roster (the `here` event) — an array of member payloads
+     * as returned by the channel authorization closure. Replace the local
+     * map wholesale, excluding ourselves (you never collide with yourself).
+     *
+     * @param  array<int, array{id: int, name: string}>  $members
+     */
+    public function syncViewers(array $members): void
+    {
+        $this->viewers = [];
+
+        foreach ($members as $member) {
+            $this->addViewer($member);
+        }
+    }
+
+    /**
+     * @param  array{id: int, name: string}  $member
+     */
+    public function viewerJoined(array $member): void
+    {
+        $this->addViewer($member);
+    }
+
+    /**
+     * @param  array{id: int, name: string}  $member
+     */
+    public function viewerLeft(array $member): void
+    {
+        unset($this->viewers[$member['id']]);
+    }
+
+    /**
+     * A remote NoteAdded broadcast: forget the cached timeline so the next
+     * render re-queries it through the authorized computed property. The
+     * websocket payload carries only the note id (broadcastWith) — the body
+     * is never trusted from the wire, which is what keeps a private note
+     * from leaking to a browser that shouldn't render it.
+     */
+    public function refreshTimeline(): void
+    {
+        unset($this->notes);
+    }
+
+    /**
+     * Dedupe by user id and skip the current viewer. Two tabs from the same
+     * person count once — the banner is about *other* people on the ticket.
+     *
+     * @param  array{id: int, name: string}  $member
+     */
+    private function addViewer(array $member): void
+    {
+        if ((int) $member['id'] === Auth::id()) {
+            return;
+        }
+
+        $this->viewers[$member['id']] = ['id' => $member['id'], 'name' => $member['name']];
     }
 
     public function addNote(AddNote $addNote): void
@@ -379,6 +477,9 @@ new class extends Component {
             {{ __('Back to queue') }}
         </flux:button>
     </div>
+
+    {{-- Collision banner: other staff currently on this request (presence). --}}
+    @include('pages.requests.viewers', ['viewers' => $viewers])
 
     <div class="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div class="space-y-8 lg:col-span-2">

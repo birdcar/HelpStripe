@@ -1,22 +1,31 @@
 # Context Map: helpstripe
 
-**Phase**: 3
-**Scout Confidence**: 90/100
+**Phase**: 7
+**Scout Confidence**: 88/100
 **Verdict**: GO
 
-> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2–5 sections retained below; Phase 3 findings added. (Phase 5 ran before 3/4 — it depends only on Phase 1.)
+> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2–3–5 sections retained below; Phase 7 findings added. (feat-007 Collision Detection depends only on feat-002, which is done.)
 
 ## Dimensions
 
-| Dimension            | Phase 1 | Phase 2 | Phase 5 | Phase 3 | Notes (Phase 3)                                                                                                |
-| -------------------- | ------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| Scope clarity        | 19/20   | 19/20   | 18/20   | 18/20   | Spec enumerates every file. The spec's own Open Item resolved during scouting: Resend's current `email.received` webhook payload is **metadata only** (no body/headers/attachment content) — full content comes from `GET /emails/receiving/{id}` and attachments (with `download_url` + `size`) from `GET /emails/receiving/{id}/attachments`. Job design adapts: webhook → store → job fetches content via Http → DTO. |
-| Pattern familiarity  | 18/20   | 18/20   | 18/20   | 18/20   | Read CreateRequest/AddNote/ChangeStatus actions, Request/Note/Mailbox/Customer models, NoteAdded event, RequestAssignedNotification (queued mail pattern), DemoSeeder, phpunit.xml (MAIL_MAILER=array, QUEUE_CONNECTION=sync), Laravel 13 mail docs (Headers: messageId/references without angle brackets; resend transport needs resend/resend-php + services.resend.key — **already present** in config/services.php as RESEND_API_KEY). First Mailable, first Listener, first console command, first API route in the repo — framework conventions apply. |
-| Dependency awareness | 16/20   | 17/20   | 18/20   | 17/20   | AddNote/CreateRequest consumed by pages SFCs + ActionsTest/ShowRequestTest — signature changes must be additive (optional params). New SendPublicReplyEmail listener auto-discovers and will fire in every existing test that adds a public staff note (array mailer + sync queue render it inline — mailable must tolerate null mailbox). DemoSeederTest asserts `support@helpstripe.test`/`billing@helpstripe.test` — seeder address derivation must default to `helpstripe.test`. |
-| Edge case coverage   | 16/20   | 17/20   | 17/20   | 18/20   | Matrix from spec + scouting: header match → subject token → new request; unknown `to` → first mailbox; reopen on Resolved/Closed (reuse ChangeStatus — owns resolved_at); duplicate delivery idempotent on message_id; customer email case-insensitive match; oversize/failed attachments → skip + private note; malformed payload → failed_jobs while webhook 200s. |
-| Test strategy        | 18/20   | 19/20   | 18/20   | 19/20   | Pest feature tests; `--filter=Inbox` hits tests/Feature/Inbox/*. Webhook posts via `postJson` with computed svix signature over the exact raw body. Resend content/attachment APIs faked with `Http::fake()`. Outbound: `Mail::fake()` + direct mailable `headers()` assertions. Sync queue runs ProcessInboundEmail inline. |
+| Dimension            | Phase 1 | Phase 2 | Phase 5 | Phase 3 | Phase 7 | Notes (Phase 7)                                                                                                |
+| -------------------- | ------- | ------- | ------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | 19/20   | 19/20   | 18/20   | 18/20   | 18/20   | Spec enumerates every file. Open Item resolved: Livewire 4 echo listeners with an embedded channel variable (`request.{id}`) must be registered via `getListeners()` returning `"echo-presence:request.{$this->helpdeskRequest->id},here" => 'method'` (and `joining`/`leaving`/`NoteAdded`) — the static `#[On('echo-presence:request.{id},…')]` attribute form is for class-property interpolation; getListeners is the robust path for the bound `$helpdeskRequest`. Broadcasting is NOT yet installed (no config/broadcasting.php, no reverb in composer.lock, BROADCAST_CONNECTION=log) → `install:broadcasting --reverb` runs clean. |
+| Pattern familiarity  | 18/20   | 18/20   | 18/20   | 18/20   | 17/20   | Read ⚡show SFC (mount route-model binds `Request $request` → `$helpdeskRequest`; Gate::authorize('view') in mount; `#[Computed] notes()` = the timeline to refresh), NoteAdded event (plain, Dispatchable+SerializesModels — gains ShouldBroadcast), AddNote action (dispatches NoteAdded after create; `toOthers()` needs the socket id, set client-side by Echo), HasTeams::belongsToTeam(Team), Team::members(), Note model. First broadcast channel, first ShouldBroadcast event, first Echo/JS wiring in the repo — Laravel/Livewire conventions apply. app.js is EMPTY (0 bytes) — `import './echo'` is the first line. |
+| Dependency awareness | 16/20   | 17/20   | 18/20   | 17/20   | 18/20   | NoteAdded already has one listener (SendPublicReplyEmail, queued, NoteAdded→public staff reply). Adding ShouldBroadcast is additive — listener unaffected. ⚡show is consumed by ShowRequestTest (Livewire::test('pages::requests.show')); adding getListeners()/viewer state must not break existing assertions. routes/channels.php is NEW — bootstrap/app.php withRouting() has no `channels:` key yet; install:broadcasting wires it. BROADCAST_CONNECTION currently `log` — tests run with broadcasting effectively inert unless faked; use Event::fake / Broadcast assertions. |
+| Edge case coverage   | 16/20   | 17/20   | 17/20   | 18/20   | 17/20   | From spec: member→array payload, non-member→false, guest→denied (guard rejects before closure). Two tabs = one user (dedupe by id in $viewers). `toOthers()` so author doesn't double-refresh. broadcastWith sends note_id ONLY (no body on the wire — private-note leak guard). Request deleted while channel open → auth closure 404s gracefully (route-model bind on /broadcasting/auth). Reverb absent → Echo connect fails silently, page still works (no hard dep). |
+| Test strategy        | 18/20   | 19/20   | 18/20   | 19/20   | 18/20   | Pest feature tests under tests/Feature/Collision/. ChannelAuthTest: POST /broadcasting/auth (or `Broadcast::channel` closure invoked directly) — member 200 w/ channel_data, foreign-team user denied, guest denied. BroadcastTest: NoteAdded implements ShouldBroadcast; `broadcastOn()` returns PresenceChannel('request.{id}'); `broadcastWith()` = `['note_id'=>…]` only; Event::fake + assertDispatched / ShouldBroadcast contract. Live two-browser behavior is the manual matrix (tour doc). |
 
 ## Key Patterns
+
+### Phase 7
+
+- `resources/views/pages/requests/⚡show.blade.php` — the SFC to modify. `mount(Request $request)` binds the ticket to `public Request $helpdeskRequest` after `Gate::authorize('view', $request)`. `#[Computed] notes()` returns `$helpdeskRequest->timeline()->get()` — the timeline to refresh on a remote `NoteAdded` (`unset($this->notes)` then `$refresh`, mirroring how `addNote()` already does `unset($this->notes)`). Echo listeners attach via `getListeners()` (channel name embeds `$this->helpdeskRequest->id`). Viewer state is a public array prop mutated by here/joining/leaving handlers.
+- `app/Events/NoteAdded.php` — plain event `__construct(public Note $note)`. Gains `implements ShouldBroadcast`, `use InteractsWithSockets`, `broadcastOn(): PresenceChannel` (`new PresenceChannel('request.'.$this->note->request_id)`), `broadcastWith(): array` = `['note_id' => $this->note->id]` ONLY, optional `broadcastWhen()`. `toOthers()` is invoked at dispatch site (or via InteractsWithSockets + the socket id Echo sets) — author's own page must NOT refresh.
+- `app/Actions/Requests/AddNote.php` — `NoteAdded::dispatch($note)` is the single broadcast trigger. To exclude the author's own client, dispatch via `broadcast(new NoteAdded($note))->toOthers()` OR keep `NoteAdded::dispatch` and rely on the socket-id header. Note: the queued `SendPublicReplyEmail` listener already consumes NoteAdded — unaffected by ShouldBroadcast.
+- `app/Concerns/HasTeams.php::belongsToTeam(Team $team): bool` + `Team::members()` — channel auth closure mirror of RequestPolicy: `$user->belongsToTeam($helpdeskRequest->team)`. Returns `['id'=>…, 'name'=>…]` (User has NO avatar/profile_photo column — avatar stack uses `<flux:avatar :name="…">` initials, same as the timeline already does).
+- Livewire 4 echo listeners (Boost-verified 2026-06-10): `getListeners()` returns `["echo-presence:request.{$id},here" => 'syncHere', "echo-presence:request.{$id},joining" => 'addViewer', "echo-presence:request.{$id},leaving" => 'removeViewer', "echo-presence:request.{$id},NoteAdded" => 'refreshTimeline']`. `here` handler receives the full member array; joining/leaving receive a single member. Class-name event (NoteAdded) — no leading dot needed (that's only for `broadcastAs()` custom names).
+- Reverb/Echo install (Boost-verified): `php artisan install:broadcasting --reverb` publishes config/broadcasting.php + config/reverb.php, adds REVERB_*/VITE_REVERB_* to .env(.example), wires `channels:` routing, and scaffolds resources/js/echo.js + installs laravel-echo/pusher-js. In this repo app.js is empty and bun is the pacakge manager (package.json has no echo deps yet) — verify the scaffold; may need `bun add laravel-echo pusher-js` + manual `import './echo'` in app.js.
 
 ### Phase 3
 
@@ -60,6 +69,15 @@
 
 ## Dependencies
 
+### Phase 7
+
+- `app/Events/NoteAdded.php` — consumed by `SendPublicReplyEmail` listener (queued, fires on public staff reply). Adding `ShouldBroadcast` is additive: the listener path is unchanged; broadcasting is a parallel dispatch. With `BROADCAST_CONNECTION=log` (test default) the broadcast no-ops to the log channel — existing tests that add notes are unaffected unless they `Event::fake()` and then must account for NoteAdded being broadcastable.
+- `app/Actions/Requests/AddNote.php` — consumed by ⚡show `addNote()`, ProcessInboundEmail (Phase 3), CreateRequest's opening note path, ActionsTest/ShowRequestTest/Inbox tests. If `toOthers()` is added at the dispatch site, it requires a current socket connection; in non-HTTP/queued contexts `toOthers()` is a safe no-op (no socket id) — broadcasts to everyone, which is correct for inbound email replies.
+- `resources/views/pages/requests/⚡show.blade.php` — consumed by ShowRequestTest (`Livewire::test('pages::requests.show', ['request' => $request])`). New public `$viewers` prop + `getListeners()` + refresh handlers must not disturb existing mount/addNote/property-update assertions. The new `⚡viewers.blade.php` partial is rendered inside show.
+- `resources/js/app.js` (empty) + `vite.config.js` (inputs list) — `import './echo'` added; echo.js is a new Vite-bundled entry (already in the app.js input, no vite.config change needed if imported from app.js). `bun run build` must regenerate the manifest or ViteException.
+- `bootstrap/app.php` — `withRouting()` currently has web/api/commands/health; `install:broadcasting` adds `channels: __DIR__.'/../routes/channels.php'`. Verify it lands.
+- `composer.json` `dev` script — concurrently stack (server, queue, logs, vite) gains a `reverb` process: `php artisan reverb:start`.
+
 ### Phase 3
 
 - `app/Actions/Requests/AddNote.php` — consumed by `pages/requests/⚡show.blade.php` (reply box) and ActionsTest/ShowRequestTest; new params must be optional with defaults so existing call sites compile unchanged.
@@ -102,6 +120,15 @@
 - **Activity history**: activitylog v5 — diffs in `Activity::attribute_changes` (`['attributes' => [...], 'old' => [...]]`), logged fields: status, assigned_to, category_id, is_urgent.
 
 ## Risks
+
+### Phase 7
+
+- **install:broadcasting interactivity**: the command may prompt (Reverb install, npm vs bun). Pass `--reverb --no-interaction`; if it tries `npm install`, it may add laravel-echo/pusher-js to package.json but run the wrong package manager — re-run `bun install` / `bun add laravel-echo pusher-js` and verify package.json. The scaffolded `resources/js/echo.js` may overwrite or expect an import in app.js (currently empty).
+- **toOthers() in test context**: `broadcast(...)->toOthers()` reads the `X-Socket-ID` header; absent in Pest/queued runs → broadcasts to all (harmless). BroadcastTest should assert the event implements ShouldBroadcast + channel/payload shape via `Event::fake()` + `assertDispatched`, NOT assert toOthers filtering (that's a connection-time concern).
+- **Channel auth test path**: hitting `POST /broadcasting/auth` requires the `channels:` route registered + a presence channel name + authenticated session. Simpler/robust: resolve the closure from `routes/channels.php` directly, or use Laravel's channel testing. The auth callback receives the route-model-bound `Request $helpdeskRequest` — binding a non-existent id 404s (graceful). Foreign-team member → closure returns false → 403; guest → guard denies before closure runs.
+- **Payload-shape regression guard**: spec FAILURE MODE — a future dev fattening `broadcastWith` to include the note body would leak private-note text over the websocket. The BroadcastTest payload-shape assertion (`note_id` only) is the pin; keep it strict.
+- **app.js empty**: `import './echo'` is the entire file's first content; passkeys.js is a separate vite input and must not be touched.
+- **User has no avatar column**: viewer banner avatars use `<flux:avatar :name="$viewer['name']">` (initials), consistent with the existing timeline rendering — do not invent an avatar URL field in the channel_data payload.
 
 ### Phase 3
 

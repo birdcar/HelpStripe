@@ -59,9 +59,9 @@
       "name": "Collision Detection",
       "description": "Laravel Reverb + Echo presence channels on request detail: viewer banner + live timeline updates. Spec: docs/ideation/helpstripe/spec-phase-7.md",
       "dependencies": ["feat-002"],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; Collision tests green; two-browser presence demo works per docs/tour/07-collision-detection.md",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → composer install OK; pint passed; phpstan 0 errors; pest 240/240 (944 assertions). php artisan test --compact --filter=Collision → 13 passed (ChannelAuth 3, Broadcast 4, ViewerState 5 + shared helper). install:broadcasting --reverb wired config/{broadcasting,reverb}.php + channels: routing + echo.js scaffold; laravel-echo/pusher-js via bun; bun run build bundles Echo (app.js 0B→73KB). routes/channels.php request.{id} presence channel (auth mirrors RequestPolicy::view). NoteAdded implements ShouldBroadcast (PresenceChannel, broadcastWith=note_id only); AddNote dispatches via broadcast()->toOthers() (listener still fires, verified by Inbox suite). ⚡show getListeners() here/joining/leaving→$viewers (dedupe by id, self-excluded) + NoteAdded→refreshTimeline; viewers.blade.php banner partial. Review cycle 1 of 3 PASS (0 critical/high). Two-browser live demo is the manual matrix in docs/tour/07-collision-detection.md §7; Pest covers auth matrix + broadcast contract + viewer-state rules offline."
     },
     {
       "id": "feat-008",

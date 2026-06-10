@@ -72,7 +72,17 @@ class AddNote
             $request->refresh();
         }
 
-        NoteAdded::dispatch($note);
+        // `broadcast()` dispatches the event through the normal event bus
+        // (so the SendPublicReplyEmail listener still fires) AND queues the
+        // websocket broadcast. `toOthers()` excludes the connection that
+        // triggered this request — the author's own open detail page already
+        // re-rendered its timeline from the action's response, so it must NOT
+        // also refresh from the broadcast (that would be a double-render).
+        // Echo attaches the X-Socket-ID header; in non-browser contexts
+        // (queued inbound email, API intake) there's no socket id, so
+        // toOthers() harmlessly broadcasts to everyone — exactly right when
+        // nobody "owns" the originating connection.
+        broadcast(new NoteAdded($note))->toOthers();
 
         return $note;
     }
