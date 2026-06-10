@@ -7,6 +7,8 @@ use App\Enums\RequestStatus;
 use App\Support\Resend\InboundEmail;
 use Database\Factories\RequestFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -194,6 +196,128 @@ class Request extends Model
             ->with(['user', 'customer'])
             ->latest()
             ->latest('id');
+    }
+
+    /**
+     * Scope to requests that have breached their category's first-response SLA.
+     *
+     * This scope is the *single source of truth* for "what counts as an SLA
+     * breach." Phase 8's reports and Phase 6's automation conditions both call
+     * it, so the dashboard's breach count and a rule that fires "when a request
+     * breaches SLA" can never disagree — there is exactly one definition, here.
+     *
+     * A request breaches when EITHER:
+     *  - it was answered, but the first response landed more than
+     *    `sla_first_response_minutes` after it was created (answered late); OR
+     *  - it is still unanswered and the target window has already elapsed
+     *    (overdue — see scopeSlaOverdue, which this scope folds in).
+     *
+     * Requests with no category, or a category with no SLA target, can never
+     * breach — there's nothing to measure against. The comparison uses `>`
+     * (strictly greater), so a response landing exactly on the target minute
+     * is in-SLA, not a breach.
+     *
+     * The minute-difference is computed in SQL via a driver-aware expression
+     * (SQLite vs MySQL spell epoch conversion differently) so the scope works
+     * as a real query — callers can `->slaBreached()->count()` without pulling
+     * rows into PHP.
+     *
+     * @param  Builder<Request>  $query
+     */
+    #[Scope]
+    protected function slaBreached(Builder $query): void
+    {
+        // whereHas runs a correlated subquery (`exists (select … from categories
+        // where categories.id = requests.category_id and …)`). Inside it the
+        // categories columns are in scope, and the outer requests columns are
+        // reachable from raw SQL via the correlation — so the whole breach test
+        // lives in one EXISTS clause, no manual join, no ambiguity.
+        $query->whereHas('category', function (Builder $category) {
+            $category
+                ->whereNotNull('sla_first_response_minutes')
+                ->where(function (Builder $clause) {
+                    $clause
+                        // Answered late: a first response exists but landed
+                        // outside the target window.
+                        ->where(function (Builder $late) {
+                            $late->whereNotNull('requests.first_responded_at')
+                                ->whereRaw($this->answeredLateSql());
+                        })
+                        // Overdue: still unanswered and the window has elapsed.
+                        ->orWhere(function (Builder $open) {
+                            $open->whereNull('requests.first_responded_at')
+                                ->whereRaw($this->overdueSql(), [now()->getTimestamp()]);
+                        });
+                });
+        });
+    }
+
+    /**
+     * Scope to requests that are unanswered AND already past their SLA target.
+     *
+     * The "overdue" subset of a breach: no first response yet and the window
+     * has elapsed. Exposed on its own because it's the actionable slice — work
+     * these now to stop the breach. (scopeSlaBreached includes these plus the
+     * already-answered-late requests, which are breaches you can't undo.)
+     *
+     * @param  Builder<Request>  $query
+     */
+    #[Scope]
+    protected function slaOverdue(Builder $query): void
+    {
+        $query
+            ->whereNull('first_responded_at')
+            ->whereHas('category', function (Builder $category) {
+                $category
+                    ->whereNotNull('sla_first_response_minutes')
+                    ->whereRaw($this->overdueSql(), [now()->getTimestamp()]);
+            });
+    }
+
+    /**
+     * SQL comparing the answered-in minutes against the category's target.
+     *
+     * SQLite and MySQL disagree on how to turn a datetime into epoch seconds
+     * (`strftime('%s', …)` vs `UNIX_TIMESTAMP(…)`), so the whole comparison is
+     * picked by a `match` on the connection's driver — each arm is a single
+     * literal string, which is exactly what `whereRaw` wants. Dividing the
+     * second-difference by 60 yields minutes; `>` (not `>=`) keeps a response
+     * landing exactly on the target in-SLA. Running this in SQL means the
+     * breach math never hydrates a row.
+     *
+     * Integer division truncates toward zero on both drivers, so the SLA is
+     * enforced at whole-minute granularity: a response anywhere inside the
+     * 61st minute of a 60-minute target still reads as 60 and stays in-SLA.
+     * That matches `sla_first_response_minutes` being a minutes value — there
+     * is no sub-minute SLA to enforce.
+     *
+     * @return literal-string
+     */
+    private function answeredLateSql(): string
+    {
+        return match ($this->getConnection()->getDriverName()) {
+            'sqlite' => "(strftime('%s', requests.first_responded_at) - strftime('%s', requests.created_at)) / 60 > categories.sla_first_response_minutes",
+            default => '(UNIX_TIMESTAMP(requests.first_responded_at) - UNIX_TIMESTAMP(requests.created_at)) / 60 > categories.sla_first_response_minutes',
+        };
+    }
+
+    /**
+     * SQL comparing the minutes-since-creation (measured to *now*) against the
+     * category's target — the overdue test for unanswered requests.
+     *
+     * "Now" is a bound `?` parameter (the caller passes Carbon's `now()` epoch)
+     * rather than the database's own clock, so frozen-time tests
+     * (`CarbonImmutable::setTestNow(...)`) measure overdue against the same
+     * instant the rest of the app sees. Same driver-branch as answeredLateSql.
+     *
+     * @return literal-string
+     */
+    private function overdueSql(): string
+    {
+        return match ($this->getConnection()->getDriverName()) {
+            'sqlite' => "(? - strftime('%s', requests.created_at)) / 60 > categories.sla_first_response_minutes",
+            default => '(? - UNIX_TIMESTAMP(requests.created_at)) / 60 > categories.sla_first_response_minutes',
+        };
     }
 
     /**

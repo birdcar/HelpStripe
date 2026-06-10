@@ -68,9 +68,9 @@
       "name": "Reporting",
       "description": "Reports page: stat cards, requests-over-time Flux chart, category SLA table, agent performance table, shared scopeSlaBreached. Spec: docs/ideation/helpstripe/spec-phase-8.md",
       "dependencies": ["feat-002"],
-      "status": "not-started",
+      "status": "done",
       "done_when": "./init.sh passes; Reports tests green with exact expected aggregates; docs/tour/08-reporting.md demo script works against seeded data",
-      "evidence": ""
+      "evidence": "2026-06-10: ./init.sh → pint passed, phpstan 0 errors, pest 278/278 (1020 assertions). php artisan test --compact --filter=Reports → 38 passed (SlaScope 8, RequestVolume 7, CategoryPerformance 8, AgentPerformance 6, QueueSnapshot 2, ReportsPage 7). Request::scopeSlaBreached/scopeSlaOverdue = single shared SLA definition (driver-aware minute-diff SQL, bound now() for frozen-clock correctness, > not >= boundary, no-target/no-category excluded). Four query objects in app/Queries/Reports (RequestVolume zero-filled CarbonPeriod series, CategoryPerformance/AgentPerformance → readonly App\\Data\\CategoryReport/AgentReport value objects, QueueSnapshot stat cards). Reports page (⚡index): #[Url] range 7/30/90, flux:chart created-vs-resolved, two flux:table blocks, can:view reports gate + @can sidebar nav. migrate:fresh --seed verified non-degenerate: snapshot open=20/unassigned=5/urgent=2/breached=14/overdue=7; Billing+Tech each have breaches AND in-SLA; Sales (no SLA) breached=0 target=null; 3 frontline agents active + Sam admin idle zero-row. DemoSeeder unchanged (existing spread already non-degenerate). Review cycle 1 of 3 PASS (inline; 0 critical/high; 2 quality findings fixed in-cycle: half-open window clarity + minute-granularity doc). docs/tour/08-reporting.md + README updated (all 6 pillars reimplemented)."
     }
   ]
 }

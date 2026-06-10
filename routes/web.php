@@ -53,6 +53,14 @@ Route::prefix('{current_team}')
             Route::livewire('kb/{book}', 'pages::kb.book')->name('kb.book');
             Route::livewire('kb/pages/{page}', 'pages::kb.edit-page')->name('kb.edit-page');
         });
+
+        // Reporting — the same permission-gating pattern as the KB manager,
+        // behind the 'view reports' ability. The sidebar nav item mirrors
+        // this middleware with `@can('view reports')`, so staff without the
+        // permission never see a link they'd 403 on.
+        Route::middleware('can:view reports')->group(function () {
+            Route::livewire('reports', 'pages::reports.index')->name('reports.index');
+        });
     });
 
 Route::middleware(['auth'])->group(function () {

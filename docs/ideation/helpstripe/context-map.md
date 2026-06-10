@@ -1,8 +1,43 @@
 # Context Map: helpstripe
 
-**Phase**: 7
-**Scout Confidence**: 88/100
+**Phase**: 8
+**Scout Confidence**: 90/100
 **Verdict**: GO
+
+> Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2–3–5–7 sections retained below; Phase 8 findings added. (feat-008 Reporting depends only on feat-002, which is done.)
+
+## Phase 8 Findings (Reporting)
+
+**Verdict GO (90/100).** Every file in the spec is identified and the codebase has clear analogues for each.
+
+### Key Patterns (Phase 8)
+
+- `app/Queries/RequestQueue.php` — the query-object pattern to replicate. Plain class, `apply(Builder, array, ?User): Builder`, teaching docblock explaining *why* a query object (shared vocabulary across consumers). Phase 8 query classes take `(Team $team, CarbonImmutable $from, CarbonImmutable $to)` in the constructor and expose one public method returning shaped arrays/collections.
+- `app/Models/Request.php` — gains `scopeSlaBreached()` / `scopeSlaOverdue()`. Existing `#[Scope]`-style is on KB models (`#[Scope] protected function published(Builder $query): void`) — Laravel 13 attribute scopes. SLA target lives on `category.sla_first_response_minutes` (nullable). Breach = `first_responded_at - created_at > sla` OR (unanswered AND `now - created_at > sla`). `>` not `>=` (boundary not a breach — documented).
+- `database/factories/RequestFactory.php` — `aged(CarbonImmutable $from, $until)` and `withFirstResponse(int $minutes)` states are PURPOSE-BUILT for reporting tests: freeze clock, build requests at known offsets, assert exact aggregates. Category SLA targets via `Category::factory()->create(['sla_first_response_minutes' => 60])`.
+- `resources/views/pages/requests/⚡index.blade.php` — page SFC anatomy to mirror: `new #[Title] class extends Component`, `#[Url]` props, `#[Computed]` getters delegating to query classes, `flux:select` for the range switcher, `flux:table`/`flux:table.columns`/`flux:table.rows`, `data-test` attributes, team-scoped via `Auth::user()->current_team_id`.
+- Flux chart (Boost-verified 2026-06-10, flux-pro 2.x): `<flux:chart wire:model="data" class="aspect-[3/1]">` wraps `<flux:chart.svg>` containing `<flux:chart.line field="created" curve="none" />`, `<flux:chart.area>`, and `<flux:chart.axis axis="x" field="date">` / `<flux:chart.axis axis="y">`. `wire:model` binds a Livewire array property whose rows are assoc arrays: `[['date' => '2026-05-12', 'created' => 3, 'resolved' => 1], ...]`. Multiple `<flux:chart.line>` for created-vs-resolved. Legend needs `<flux:chart.viewport>` wrapper. x-axis auto-detects date scale.
+- `database/seeders/PermissionSeeder.php` — `'view reports'` permission ALREADY EXISTS (line 32) and is on the Administrator role. The `can:view reports` middleware works through the Gate. No seeder change needed for the permission itself.
+- `database/seeders/DemoSeeder.php` — already produces a non-degenerate dataset for charts: `firstResponseMinutes()` alternates inside-SLA (`target/2`) vs breach (`target*3`); all 3 categories cycle; requests spread over 60 days; staff assignment cycles (`$i % 4`, every 4th unassigned). Likely needs NO change — verify all 3 non-admin staff get assigned requests and there are both breaches and in-SLA per category.
+- `tests/Feature/KnowledgeBase/AdminCrudTest.php` — the permission-gate test helper to mirror: `kbStaffer(bool $administrator)` seeds PermissionSeeder, creates team+user+membership, `assignRole('Administrator'|'Help Desk Staff')`. Reports tests need the same helper for the 403/nav-hidden assertions.
+
+### Dependencies (Phase 8)
+
+- `app/Models/Request.php` — adding scopes is additive (consumed by Foundation tests, DemoSeeder, factories, RequestQueue, all phases). `scopeSlaBreached` must JOIN/whereHas against category for the SLA target; `category_id` is nullable and `sla_first_response_minutes` is nullable → requests with no SLA target are NOT breaches (excluded from breach math but counted in totals).
+- `routes/web.php` — new `reports` route goes inside the existing `{current_team}` group with `can:view reports` middleware, mirroring the `can:manage knowledge base` group already there. `Route::livewire('reports', 'pages::reports.index')->name('reports.index')`.
+- `resources/views/layouts/app/sidebar.blade.php` — add `@can('view reports')`-gated nav item after the KB item, mirroring the existing `@can('manage knowledge base')` block. Icon `chart-bar` or similar.
+- `app/Queries/Reports/*` — new sub-namespace under the existing `app/Queries/` dir (created Phase 2). No external consumers yet (reports page is the only caller); unit-testable in isolation.
+
+### Risks (Phase 8)
+
+- **Timezone bucketing drift**: requests stored UTC; day buckets must group consistently. Use `CarbonPeriod` over `created_at->toDateString()` after a single ranged select (PHP-side grouping, SQLite-safe). Test with a 23:30 fixture to pin the boundary.
+- **SLA definition drift**: the report breach count and Phase 6 automation MUST share `scopeSlaBreached`. Define once on the model; reports use the scope, never inline the comparison. Cross-reference in tour docs 06 + 08.
+- **Division by zero / empty averages**: a category with all-unanswered requests has no first-response samples → avg is null → render "—" not 0. Guard in the query class (return null, view coalesces).
+- **Range edges**: inclusive `from`, exclusive `to` (documented). Request created inside range but resolved outside counts created-only. Zero-fill every day in range via CarbonPeriod even with no requests.
+- **Deleted/former staff**: users aren't soft-deleted; an assignee who left the team still has an id. Agent table left-joins tolerantly — but the spec's "(former staff)" case is unlikely in the seeded data. Keep the agent query iterating over current team members; assigned-to-nobody is the `unassigned` exclusion.
+- **No `requests(created_at)` index**: spec says measure first, likely unnecessary at demo scale (40 rows). Skip the migration; note in tour doc.
+
+---
 
 > Note: Scout ran inline (no Agent subagent tool available in this environment); same workflow, same read-only exploration. Phase 1–2–3–5 sections retained below; Phase 7 findings added. (feat-007 Collision Detection depends only on feat-002, which is done.)
 

@@ -51,6 +51,20 @@
                             {{ __('Knowledge Books') }}
                         </flux:sidebar.item>
                     @endcan
+
+                    {{-- Same pattern as the KB item: visible only with the
+                         'view reports' permission, mirroring the `can:view
+                         reports` middleware on the reports route. --}}
+                    @can('view reports')
+                        <flux:sidebar.item
+                            icon="chart-bar"
+                            :href="route('reports.index')"
+                            :current="request()->routeIs('reports.*')"
+                            wire:navigate
+                        >
+                            {{ __('Reports') }}
+                        </flux:sidebar.item>
+                    @endcan
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

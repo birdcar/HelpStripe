@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Implementation Notes — Phase 8</title>
+    <style>
+      :root {
+        --color-bg: #ffffff;
+        --color-surface: #f8f9fa;
+        --color-border: #dee2e6;
+        --color-text: #212529;
+        --color-text-muted: #6c757d;
+        --color-accent: #4361ee;
+        --color-accent-bg: #eef0ff;
+        --color-success: #2d6a4f;
+        --color-success-bg: #d8f3dc;
+        --color-danger: #9b2226;
+        --color-danger-bg: #fde8e8;
+        --color-warning: #b45309;
+        --color-warning-bg: #fef3c7;
+        --font-sans:
+          system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
+        --font-mono:
+          'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo,
+          Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        --max-width: 900px;
+      }
+      @media (prefers-color-scheme: dark) {
+        [data-theme='auto'] {
+          --color-bg: #1a1a2e;
+          --color-surface: #16213e;
+          --color-border: #2a2a4a;
+          --color-text: #e0e0e0;
+          --color-text-muted: #a0a0b0;
+          --color-accent: #6c83f7;
+          --color-accent-bg: #1e2a4a;
+          --color-success: #4ade80;
+          --color-success-bg: #14352a;
+          --color-danger: #f87171;
+          --color-danger-bg: #3a1818;
+          --color-warning: #fbbf24;
+          --color-warning-bg: #3a2a08;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+      }
+      .doc-header {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-5) var(--space-4) 0;
+      }
+      .doc-meta {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .doc-content {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: var(--space-4);
+      }
+      .note-entry {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .note-entry h3 {
+        margin-top: 0;
+      }
+      .note-entry dt {
+        font-weight: 600;
+        color: var(--color-accent);
+        margin-top: var(--space-3);
+      }
+      .note-entry dd {
+        margin-left: 0;
+      }
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: var(--color-accent-bg);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="doc-header">
+      <h1>Implementation Notes — Phase 8</h1>
+      <p class="doc-meta">HelpStripe · 2026-06-10 · Reporting</p>
+    </header>
+    <main class="doc-content">
+      <section class="note-entry">
+        <h3>
+          CategoryPerformance / AgentPerformance return value objects, not
+          associative-array rows
+        </h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec says each query class returns "row collections matching
+            their table columns." The natural first cut was
+            <code>Collection&lt;int, array{name: string, count: int, …}&gt;</code>
+            — a collection of array shapes. It worked at runtime and the tests
+            passed, but <code>composer test</code>'s phpstan step rejected it
+            with a <code>return.type</code> error whose expected and actual
+            types were textually identical, tagged
+            <em>"Template type TValue on Collection is not covariant."</em>
+            phpstan treats array shapes in a collection's value position as
+            invariant, so the declared and inferred types never unify.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Introduced two readonly value objects —
+            <code>App\Data\CategoryReport</code> and
+            <code>App\Data\AgentReport</code> — exactly mirroring the existing
+            <code>App\Data\UserTeam</code> convention, and returned
+            <code>Collection&lt;int, CategoryReport&gt;</code> /
+            <code>Collection&lt;int, AgentReport&gt;</code>. A named class in
+            the value position is covariant where an array shape is not, so
+            phpstan is satisfied without an <code>@var</code> override, a cast,
+            or a baseline entry. The Blade view reads <code>$row-&gt;name</code>
+            instead of <code>$row['name']</code>, and the tests assert against
+            properties. <code>RequestVolume</code> and <code>QueueSnapshot</code>
+            keep their plain-array returns — they're consumed positionally (the
+            chart) and by fixed keys (the cards), not collected, so the
+            invariance issue never arises there.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Keep the array shapes and silence phpstan. Rejected: the project's
+            phpstan instructions explicitly forbid <code>@var</code> overrides,
+            casts-to-silence, and baseline suppression — and the codebase
+            already had the value-object pattern (<code>UserTeam</code>) for
+            precisely this "small structured record returned in a typed
+            collection" case, so following it is the idiomatic fix, not a
+            workaround.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>
+          The SLA scopes bind "now" as a parameter instead of using the
+          database clock
+        </h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            <code>scopeSlaOverdue</code> needs "minutes since the request was
+            created, measured to now." The obvious SQL is
+            <code>strftime('%s', 'now')</code> (SQLite) /
+            <code>UNIX_TIMESTAMP()</code> (MySQL). But that reads the
+            <em>database's</em> wall clock — and the overdue test freezes time
+            with <code>CarbonImmutable::setTestNow('2026-06-10 12:00:00')</code>
+            while creating a request "30 minutes ago." The DB clock returns the
+            real 2026 instant, so a not-yet-overdue request looked wildly
+            overdue and the test failed.
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            "Now" is passed as a bound <code>?</code> parameter —
+            <code>now()-&gt;getTimestamp()</code>, which respects
+            <code>setTestNow</code> — rather than the database's own clock. Only
+            the per-row <code>created_at</code> epoch conversion stays in SQL
+            (the part that genuinely needs the driver branch). The breach math
+            still runs in the database (a real <code>->count()</code>, no
+            hydration), but it measures elapsed time against the same instant
+            the rest of the app sees.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Use the DB clock and special-case tests. Rejected: a query that
+            behaves differently under a frozen clock than the rest of the app
+            is a latent bug, not just a test inconvenience — bound "now" is
+            simply correct.
+          </dd>
+        </dl>
+      </section>
+      <section class="note-entry">
+        <h3>DemoSeeder needed no change — the existing spread is already non-degenerate</h3>
+        <dl>
+          <dt>Context</dt>
+          <dd>
+            The spec's modified-files table lists DemoSeeder: "verify spread
+            produces non-degenerate charts (some breaches, some in-SLA, all
+            agents represented) — adjust factory weights if needed."
+          </dd>
+          <dt>Decision</dt>
+          <dd>
+            Verified against the seeded data via the four query classes and
+            made <em>no</em> seeder change. The Phase-1
+            <code>firstResponseMinutes()</code> helper already alternates
+            inside-SLA (<code>target/2</code>) and breach (<code>target*3</code>)
+            per request, so Billing and Technical Support each show both hits
+            and breaches; Sales (no SLA) shows 0 breaches with a null target;
+            all three frontline staff carry activity; and the Administrator
+            (Sam) holds no assigned requests, which renders as the idle-agent
+            <em>zero row</em> — a happy accident that demonstrates exactly the
+            edge case the spec flagged. Snapshot against the 90-day window:
+            open 20, unassigned 5, urgent 2, breached 14, overdue 7.
+          </dd>
+          <dt>Alternative</dt>
+          <dd>
+            Force Sam to own some requests so every agent row is non-zero.
+            Rejected: the zero row is the more instructive demo (it proves
+            idle agents appear), and changing the seeder would have disturbed
+            <code>DemoSeederTest</code>'s exact-count assertions for no gain.
+          </dd>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>
